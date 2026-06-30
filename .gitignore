@@ -1,0 +1,72 @@
+# === BINARIES (hanya di root, bukan folder cmd/codeforge) ===
+/codeforge
+/codeforge.exe
+*.exe
+*.dll
+*.so
+*.dylib
+/bin/
+/build/
+/dist/
+codeforge-linux-*
+codeforge-android-*
+
+# === SECRETS & API KEYS ===
+*.env
+.env
+.env.local
+config.local.yaml
+config.production.yaml
+config.secret.yaml
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+*.token
+
+# === Go ===
+*.test
+*.out
+coverage.txt
+coverage.html
+*.prof
+vendor/
+go.work
+go.work.sum
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS ===
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+
+# === Logs & Cache ===
+*.log
+logs/
+*.cache
+.codeforge/
+*.session
+
+# === Build artifacts ===
+*.tar.gz
+*.zip
+release/
+
+# === Database ===
+*.db
+*.sqlite
+*.sqlite3
+
+# === Keystore ===
+*.keystore
+*.jks
+keystore.properties

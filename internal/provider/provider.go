@@ -1,0 +1,123 @@
+package provider
+
+import (
+    "context"
+    "errors"
+    "fmt"
+)
+
+type Message struct {
+    Role      string    `json:"role"`
+    Content   string    `json:"content"`
+    ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+}
+
+type ToolCall struct {
+    ID    string `json:"id"`
+    Name  string `json:"name"`
+    Input string `json:"input"`
+}
+
+type ToolDefinition struct {
+    Name        string `json:"name"`
+    Description string `json:"description"`
+    InputSchema any    `json:"input_schema"`
+}
+
+type CompletionRequest struct {
+    Messages    []Message        `json:"messages"`
+    Model       string           `json:"model"`
+    MaxTokens   int              `json:"max_tokens,omitempty"`
+    Temperature float64          `json:"temperature,omitempty"`
+    System      string           `json:"system,omitempty"`
+    Tools       []ToolDefinition `json:"tools,omitempty"`
+}
+
+type CompletionResponse struct {
+    Content      string     `json:"content"`
+    ToolCalls    []ToolCall `json:"tool_calls,omitempty"`
+    InputTokens  int        `json:"input_tokens"`
+    OutputTokens int        `json:"output_tokens"`
+    StopReason   string     `json:"stop_reason"`
+}
+
+type StreamToken struct {
+    Text         string    `json:"text,omitempty"`
+    ToolCall     *ToolCall `json:"tool_call,omitempty"`
+    Done         bool      `json:"done"`
+    Error        error     `json:"-"`
+    InputTokens  int       `json:"input_tokens,omitempty"`
+    OutputTokens int       `json:"output_tokens,omitempty"`
+}
+
+type Provider interface {
+    Name() string
+    Models() []ModelInfo
+    Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error)
+    Stream(ctx context.Context, req CompletionRequest) (<-chan StreamToken, error)
+    CountTokens(messages []Message) int
+    ValidateConfig() error
+}
+
+type ModelInfo struct {
+    ID            string  `json:"id"`
+    Name          string  `json:"name"`
+    ContextWindow int     `json:"context_window"`
+    InputCost     float64 `json:"input_cost_per_1m"`
+    OutputCost    float64 `json:"output_cost_per_1m"`
+}
+
+type Registry struct {
+    providers map[string]Provider
+    current   string
+}
+
+func NewRegistry() *Registry {
+    return &Registry{providers: make(map[string]Provider)}
+}
+
+func (r *Registry) Register(p Provider) error {
+    if p == nil {
+        return errors.New("provider is nil")
+    }
+    r.providers[p.Name()] = p
+    if r.current == "" {
+        r.current = p.Name()
+    }
+    return nil
+}
+
+func (r *Registry) Get(name string) (Provider, error) {
+    p, ok := r.providers[name]
+    if !ok {
+        return nil, fmt.Errorf("provider %q not registered", name)
+    }
+    return p, nil
+}
+
+func (r *Registry) Current() (Provider, error) {
+    if r.current == "" {
+        return nil, errors.New("no provider registered")
+    }
+    return r.Get(r.current)
+}
+
+func (r *Registry) Switch(name string) error {
+    if _, ok := r.providers[name]; !ok {
+        return fmt.Errorf("provider %q not registered", name)
+    }
+    r.current = name
+    return nil
+}
+
+func (r *Registry) List() []string {
+    names := make([]string, 0, len(r.providers))
+    for name := range r.providers {
+        names = append(names, name)
+    }
+    return names
+}
+
+func (r *Registry) CurrentName() string {
+    return r.current
+}
