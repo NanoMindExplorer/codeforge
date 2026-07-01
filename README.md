@@ -1,4 +1,4 @@
-# CodeForge TUI
+# CodeForge
 
 > Terminal AI Coding Companion dengan Multi-Agent Plug & Play
 
