@@ -69,7 +69,7 @@ func (p *OllamaProvider) ValidateConfig() error {
 	}
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("ollama not reachable at %s: %w", p.endpoint, err)
+		return Classify(err, 0, fmt.Sprintf("ollama not reachable at %s", p.endpoint), "ollama")
 	}
 	resp.Body.Close()
 	return nil
@@ -139,7 +139,7 @@ func (p *OllamaProvider) Complete(ctx context.Context, req CompletionRequest) (*
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		return nil, HTTPError("ollama", resp.StatusCode, raw, nil)
+		return nil, HTTPErrorHeaders("ollama", resp.StatusCode, raw, resp.Header, nil)
 	}
 	var or ollamaResp
 	if err := json.Unmarshal(raw, &or); err != nil {
@@ -181,7 +181,7 @@ func (p *OllamaProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
 		defer resp.Body.Close()
 		if resp.StatusCode != 200 {
 			b, _ := io.ReadAll(resp.Body)
-			out <- StreamToken{Done: true, Error: HTTPError("ollama", resp.StatusCode, b, nil)}
+			out <- StreamToken{Done: true, Error: HTTPErrorHeaders("ollama", resp.StatusCode, b, resp.Header, nil)}
 			return
 		}
 		sc := bufio.NewScanner(resp.Body)

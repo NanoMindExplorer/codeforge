@@ -87,7 +87,7 @@ func StreamRetryingReasoning(ctx context.Context, p Provider, req CompletionRequ
 			// signal retry via a zero-text token with no error — consumer sees normal stream;
 			// we push a synthetic empty reasoning note as first done=false text is awkward.
 			// Emit one info-bearing error-free token with Reasoning field used as notice.
-			out <- StreamToken{Reasoning: "↻ reasoning not supported — continued without thinking"}
+			out <- StreamToken{Reasoning: "🧠 Reasoning not supported — continued without thinking"}
 			for tok := range ch2 {
 				out <- tok
 			}

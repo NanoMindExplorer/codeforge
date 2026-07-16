@@ -75,9 +75,9 @@ func (p *OpenAIProvider) Models() []ModelInfo {
 func (p *OpenAIProvider) ValidateConfig() error {
 	if p.apiKey == "" {
 		if p.name == "grok" {
-			return fmt.Errorf("XAI_API_KEY / GROK_API_KEY not set")
+			return AuthError("grok", "XAI_API_KEY / GROK_API_KEY not set")
 		}
-		return fmt.Errorf("OPENAI_API_KEY not set")
+		return AuthError("openai", "OPENAI_API_KEY not set")
 	}
 	return nil
 }
@@ -228,11 +228,11 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (*
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		return nil, HTTPError(p.name, resp.StatusCode, raw, nil)
+		return nil, HTTPErrorHeaders(p.name, resp.StatusCode, raw, resp.Header, nil)
 	}
 	var oai oaiResp
 	if err := json.Unmarshal(raw, &oai); err != nil {
-		return nil, err
+		return nil, Classify(err, 0, "invalid JSON from provider", p.name)
 	}
 	if oai.Error != nil {
 		return nil, Classify(nil, 400, oai.Error.Message, p.name)
@@ -303,7 +303,7 @@ func (p *OpenAIProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
 		defer resp.Body.Close()
 		if resp.StatusCode != 200 {
 			b, _ := io.ReadAll(resp.Body)
-			out <- StreamToken{Done: true, Error: HTTPError(p.name, resp.StatusCode, b, nil)}
+			out <- StreamToken{Done: true, Error: HTTPErrorHeaders(p.name, resp.StatusCode, b, resp.Header, nil)}
 			return
 		}
 		sc := bufio.NewScanner(resp.Body)

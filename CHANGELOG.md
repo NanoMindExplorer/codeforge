@@ -5,6 +5,18 @@ All notable changes to CodeForge are documented here.
 Generate a release blurb: `make release-notes` or `bash scripts/release-notes.sh`.  
 Automated readiness: `make release-gate` (see [docs/RELEASE_GATE.md](./docs/RELEASE_GATE.md)).
 
+## [1.9.2] — 2026-07-16
+
+### Provider error UX (friendly, never stack dumps)
+
+- Richer `ProviderError` UX: icons per code, provider tag, toast `Short()` line.
+- User messages **never** include raw JSON bodies or Go stacks; secrets redacted in logs.
+- JSON `error.message` extraction for classification; Retry-After header support.
+- Optional log: `~/.codeforge/logs/provider-error.jsonl` (`CODEFORGE_PROVIDER_ERROR_LOG=0` to disable).
+- ValidateConfig returns structured `AuthError` (grok/openai/gemini/claude).
+- Reasoning unsupported notice improved; auto-retry unchanged.
+- Docs: [docs/ERRORS.md](./docs/ERRORS.md).
+
 ## [1.9.1] — 2026-07-16
 
 ### Auth & onboarding (multi-provider clarity)

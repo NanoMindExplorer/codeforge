@@ -131,7 +131,7 @@ func (p *GeminiProvider) Models() []ModelInfo {
 
 func (p *GeminiProvider) ValidateConfig() error {
 	if p.apiKey == "" {
-		return fmt.Errorf("GEMINI_API_KEY not set. Get free key at https://aistudio.google.com/apikey")
+		return AuthError("gemini", "GEMINI_API_KEY not set")
 	}
 	return nil
 }
@@ -249,7 +249,7 @@ func (p *GeminiProvider) Complete(ctx context.Context, req CompletionRequest) (*
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		return nil, HTTPError("gemini", resp.StatusCode, respBody, nil)
+		return nil, HTTPErrorHeaders("gemini", resp.StatusCode, respBody, resp.Header, nil)
 	}
 
 	var gResp geminiResponse
@@ -351,7 +351,7 @@ func (p *GeminiProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
 
 		if resp.StatusCode != 200 {
 			respBody, _ := io.ReadAll(resp.Body)
-			out <- StreamToken{Done: true, Error: HTTPError("gemini", resp.StatusCode, respBody, nil)}
+			out <- StreamToken{Done: true, Error: HTTPErrorHeaders("gemini", resp.StatusCode, respBody, resp.Header, nil)}
 			return
 		}
 

@@ -765,11 +765,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.chat.AddSystemMessage(provider.FormatUserError(msg.err))
 		m.chat.streaming = false
-		toast := msg.err.Error()
-		if pe, ok := provider.AsProviderError(msg.err); ok && pe != nil && pe.Message != "" {
-			toast = pe.Message
-		}
-		m.toast = components.NewToast(toast, "error", 4*time.Second)
+		m.toast = components.NewToast(provider.FormatUserErrorShort(msg.err), "error", 4*time.Second)
 	}
 
 	m.syncStatus()
@@ -3794,7 +3790,7 @@ AGENT / IDE
 }
 
 func aboutText() string {
-	return `CodeForge TUI v1.9.1
+	return `CodeForge TUI v1.9.2
 Created by NanoMind — 2026 — Apache 2.0
 
 Grok Build TUI–compatible (Phases 1–9 + G1–G10 + W1–W4):

@@ -127,7 +127,7 @@ func runLoop(ctx context.Context, cfg Config, history []provider.Message, out ch
 			return
 		}
 		if retried {
-			out <- Event{Kind: EventInfo, Text: "↻ Model rejected reasoning/thinking — continued without thinking"}
+			out <- Event{Kind: EventInfo, Text: "🧠 Reasoning not supported by this model — continued without thinking\n  → set CODEFORGE_REASONING=off to skip the retry, or /model another id"}
 		}
 
 		if strings.TrimSpace(resp.Reasoning) != "" {

@@ -58,10 +58,10 @@ func (p *ClaudeProvider) Models() []ModelInfo {
 
 func (p *ClaudeProvider) ValidateConfig() error {
 	if p.apiKey == "" {
-		return fmt.Errorf("ANTHROPIC_API_KEY not set")
+		return AuthError("claude", "ANTHROPIC_API_KEY not set")
 	}
 	if p.client == nil {
-		return fmt.Errorf("anthropic client not initialized")
+		return AuthError("claude", "Anthropic client not initialized")
 	}
 	return nil
 }
