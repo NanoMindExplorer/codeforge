@@ -15,10 +15,10 @@ import (
 type Action string
 
 const (
-	ActionNone     Action = ""
-	ActionApprove  Action = "approve"
-	ActionChanges  Action = "changes" // request changes
-	ActionQuit     Action = "quit"
+	ActionNone    Action = ""
+	ActionApprove Action = "approve"
+	ActionChanges Action = "changes" // request changes
+	ActionQuit    Action = "quit"
 )
 
 // Focus within the approval surface.

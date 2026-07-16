@@ -78,15 +78,15 @@ func GrokNight() Tokens {
 		Name: "groknight",
 		// Neutral dark base (Grok-like)
 		BgBase: "#0D0D0F", BgSurface: "#141417", BgElevated: "#1C1C21", BgOverlay: "#25252B",
-		BgLight: "#1A1A1F",
+		BgLight:   "#1A1A1F",
 		BorderDim: "#2A2A32", BorderActive: "#C084FC", BorderGlow: "#E879F9", PromptBorder: "#3F3F46",
 		SelectionBorder: "#E879F9",
-		TextPrimary: "#EDEDEF", TextSecondary: "#A1A1AA", TextMuted: "#71717A", TextDisabled: "#52525B",
+		TextPrimary:     "#EDEDEF", TextSecondary: "#A1A1AA", TextMuted: "#71717A", TextDisabled: "#52525B",
 		// Magenta family accents (GrokNight signature)
 		AccentUser: "#E879F9", AccentAssistant: "#C4B5FD", AccentTool: "#A78BFA",
 		AccentThinking: "#818CF8", AccentSystem: "#71717A", AccentPlan: "#F0ABFC",
 		AccentRunning: "#F472B6",
-		AccentAI: "#C4B5FD", AccentAgent: "#A78BFA", AccentFocus: "#E879F9",
+		AccentAI:      "#C4B5FD", AccentAgent: "#A78BFA", AccentFocus: "#E879F9",
 		Success: "#4ADE80", Danger: "#FB7185", Warning: "#FBBF24", Info: "#60A5FA",
 		DiffAddBg: "#052e16", DiffAddFg: "#4ADE80", DiffDelBg: "#450a0a", DiffDelFg: "#FB7185", DiffCtxFg: "#71717A",
 		ScrollbarBg: "#1C1C21", ScrollbarFg: "#52525B",
@@ -98,12 +98,12 @@ func GrokNight() Tokens {
 // Aurora is the legacy CodeForge cyan theme (kept for /theme).
 func Aurora() Tokens {
 	return Tokens{
-		Name: "aurora",
+		Name:   "aurora",
 		BgBase: "#0A0E14", BgSurface: "#10151C", BgElevated: "#161C26", BgOverlay: "#1C2430",
-		BgLight: "#121820",
+		BgLight:   "#121820",
 		BorderDim: "#232B38", BorderActive: "#22D3EE", BorderGlow: "#A78BFA", PromptBorder: "#232B38",
 		SelectionBorder: "#22D3EE",
-		TextPrimary: "#E6EDF3", TextSecondary: "#8B98A8", TextMuted: "#576273", TextDisabled: "#384250",
+		TextPrimary:     "#E6EDF3", TextSecondary: "#8B98A8", TextMuted: "#576273", TextDisabled: "#384250",
 		AccentUser: "#38BDF8", AccentAssistant: "#22D3EE", AccentTool: "#A78BFA",
 		AccentThinking: "#818CF8", AccentSystem: "#576273", AccentPlan: "#22D3EE", AccentRunning: "#F472B6",
 		AccentAI: "#22D3EE", AccentAgent: "#A78BFA", AccentFocus: "#F472B6",
@@ -122,12 +122,12 @@ func Light() Tokens {
 // GrokDay is the light theme for bright terminal backgrounds.
 func GrokDay() Tokens {
 	return Tokens{
-		Name: "grokday",
+		Name:   "grokday",
 		BgBase: "#FAFAFA", BgSurface: "#F4F4F5", BgElevated: "#E4E4E7", BgOverlay: "#D4D4D8",
-		BgLight: "#F0F0F3",
+		BgLight:   "#F0F0F3",
 		BorderDim: "#D4D4D8", BorderActive: "#C026D3", BorderGlow: "#A21CAF", PromptBorder: "#D4D4D8",
 		SelectionBorder: "#C026D3",
-		TextPrimary: "#18181B", TextSecondary: "#52525B", TextMuted: "#A1A1AA", TextDisabled: "#D4D4D8",
+		TextPrimary:     "#18181B", TextSecondary: "#52525B", TextMuted: "#A1A1AA", TextDisabled: "#D4D4D8",
 		AccentUser: "#C026D3", AccentAssistant: "#7C3AED", AccentTool: "#6D28D9",
 		AccentThinking: "#4F46E5", AccentSystem: "#71717A", AccentPlan: "#A21CAF", AccentRunning: "#DB2777",
 		AccentAI: "#7C3AED", AccentAgent: "#6D28D9", AccentFocus: "#C026D3",
@@ -141,12 +141,12 @@ func GrokDay() Tokens {
 // TokyoNight blue-tinted dark (truecolor preferred).
 func TokyoNight() Tokens {
 	return Tokens{
-		Name: "tokyonight",
+		Name:   "tokyonight",
 		BgBase: "#1A1B26", BgSurface: "#1F2335", BgElevated: "#24283B", BgOverlay: "#292E42",
-		BgLight: "#222436",
+		BgLight:   "#222436",
 		BorderDim: "#3B4261", BorderActive: "#7AA2F7", BorderGlow: "#BB9AF7", PromptBorder: "#3B4261",
 		SelectionBorder: "#BB9AF7",
-		TextPrimary: "#C0CAF5", TextSecondary: "#A9B1D6", TextMuted: "#565F89", TextDisabled: "#414868",
+		TextPrimary:     "#C0CAF5", TextSecondary: "#A9B1D6", TextMuted: "#565F89", TextDisabled: "#414868",
 		AccentUser: "#BB9AF7", AccentAssistant: "#7DCFFF", AccentTool: "#7AA2F7",
 		AccentThinking: "#9D7CD8", AccentSystem: "#565F89", AccentPlan: "#BB9AF7", AccentRunning: "#FF9E64",
 		AccentAI: "#7DCFFF", AccentAgent: "#7AA2F7", AccentFocus: "#BB9AF7",
@@ -160,12 +160,12 @@ func TokyoNight() Tokens {
 // RosePineMoon muted dark palette with mauve accents (truecolor preferred).
 func RosePineMoon() Tokens {
 	return Tokens{
-		Name: "rosepine",
+		Name:   "rosepine",
 		BgBase: "#232136", BgSurface: "#2A273F", BgElevated: "#393552", BgOverlay: "#44415A",
-		BgLight: "#2A273F",
+		BgLight:   "#2A273F",
 		BorderDim: "#6E6A86", BorderActive: "#C4A7E7", BorderGlow: "#EBBCBA", PromptBorder: "#6E6A86",
 		SelectionBorder: "#C4A7E7",
-		TextPrimary: "#E0DEF4", TextSecondary: "#908CAA", TextMuted: "#6E6A86", TextDisabled: "#575279",
+		TextPrimary:     "#E0DEF4", TextSecondary: "#908CAA", TextMuted: "#6E6A86", TextDisabled: "#575279",
 		AccentUser: "#C4A7E7", AccentAssistant: "#9CCFD8", AccentTool: "#EBBCBA",
 		AccentThinking: "#C4A7E7", AccentSystem: "#6E6A86", AccentPlan: "#F6C177", AccentRunning: "#EA9A97",
 		AccentAI: "#9CCFD8", AccentAgent: "#EBBCBA", AccentFocus: "#C4A7E7",
@@ -179,12 +179,12 @@ func RosePineMoon() Tokens {
 // OscuraMidnight deep dark base with purple accents (truecolor preferred).
 func OscuraMidnight() Tokens {
 	return Tokens{
-		Name: "oscura",
+		Name:   "oscura",
 		BgBase: "#0B0B0F", BgSurface: "#121218", BgElevated: "#1A1A22", BgOverlay: "#22222C",
-		BgLight: "#14141C",
+		BgLight:   "#14141C",
 		BorderDim: "#2E2E3A", BorderActive: "#A78BFA", BorderGlow: "#C4B5FD", PromptBorder: "#2E2E3A",
 		SelectionBorder: "#A78BFA",
-		TextPrimary: "#E8E6F0", TextSecondary: "#9B97B0", TextMuted: "#6B6780", TextDisabled: "#4A4660",
+		TextPrimary:     "#E8E6F0", TextSecondary: "#9B97B0", TextMuted: "#6B6780", TextDisabled: "#4A4660",
 		AccentUser: "#A78BFA", AccentAssistant: "#C4B5FD", AccentTool: "#8B5CF6",
 		AccentThinking: "#818CF8", AccentSystem: "#6B6780", AccentPlan: "#DDD6FE", AccentRunning: "#C084FC",
 		AccentAI: "#C4B5FD", AccentAgent: "#8B5CF6", AccentFocus: "#A78BFA",
@@ -202,10 +202,10 @@ func MinimalTokens() Tokens {
 		Name: "minimal",
 		// Empty bg = terminal default (no forced paint)
 		BgBase: "", BgSurface: "", BgElevated: "", BgOverlay: "",
-		BgLight: "",
+		BgLight:   "",
 		BorderDim: "8", BorderActive: "5", BorderGlow: "13", PromptBorder: "8",
 		SelectionBorder: "5",
-		TextPrimary: "15", TextSecondary: "7", TextMuted: "8", TextDisabled: "8",
+		TextPrimary:     "15", TextSecondary: "7", TextMuted: "8", TextDisabled: "8",
 		AccentUser: "5", AccentAssistant: "6", AccentTool: "4",
 		AccentThinking: "4", AccentSystem: "8", AccentPlan: "5", AccentRunning: "3",
 		AccentAI: "6", AccentAgent: "4", AccentFocus: "5",
@@ -244,9 +244,9 @@ var (
 	compact = false
 	minimal = false
 	// auto mode: follow system light/dark
-	autoMode       = false
-	autoDarkName   = "groknight"
-	autoLightName  = "grokday"
+	autoMode      = false
+	autoDarkName  = "groknight"
+	autoLightName = "grokday"
 	// theme order for cycling (excludes auto)
 	themeCycle = []func() Tokens{GrokNight, GrokDay, TokyoNight, RosePineMoon, OscuraMidnight, Aurora}
 )

@@ -83,8 +83,8 @@ func (p *OpenAIProvider) ValidateConfig() error {
 }
 
 type oaiMsg struct {
-	Role       string        `json:"role"`
-	Content    string        `json:"content,omitempty"`
+	Role    string `json:"role"`
+	Content string `json:"content,omitempty"`
 	// ReasoningContent is used by DeepSeek-R1 / some xAI / OpenAI reasoning models.
 	ReasoningContent string        `json:"reasoning_content,omitempty"`
 	Reasoning        string        `json:"reasoning,omitempty"`

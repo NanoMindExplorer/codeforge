@@ -23,18 +23,18 @@ import (
 
 // Options for a headless agent run.
 type Options struct {
-	Task           string
-	JSON           bool
-	Act            bool
-	Plan           bool
-	AlwaysApprove  bool // YOLO / always_approve
-	DontAsk        bool // deny anything that would prompt
-	Model          string
-	MaxIter        int
-	Timeout        time.Duration
-	WorkDir        string
-	Quiet          bool
-	SystemExtra    string
+	Task          string
+	JSON          bool
+	Act           bool
+	Plan          bool
+	AlwaysApprove bool // YOLO / always_approve
+	DontAsk       bool // deny anything that would prompt
+	Model         string
+	MaxIter       int
+	Timeout       time.Duration
+	WorkDir       string
+	Quiet         bool
+	SystemExtra   string
 	// Sandbox profile (Grok-compatible); empty uses config/env.
 	Sandbox        string
 	SandboxFlagSet bool
@@ -42,9 +42,9 @@ type Options struct {
 
 // Result is the structured outcome of a headless run.
 type Result struct {
-	OK           bool              `json:"ok"`
-	Text         string            `json:"text"`
-	Error        string            `json:"error,omitempty"`
+	OK    bool   `json:"ok"`
+	Text  string `json:"text"`
+	Error string `json:"error,omitempty"`
 	// Code is a stable machine code (auth, rate_limit, no_provider, …).
 	Code string `json:"code,omitempty"`
 	// Hint is an actionable next step for operators/CI.

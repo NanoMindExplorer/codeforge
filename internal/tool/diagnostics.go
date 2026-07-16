@@ -66,7 +66,7 @@ func (d *Diagnostics) Execute(input json.RawMessage) Result {
 	defer cancel()
 
 	var (
-		cmd  *exec.Cmd
+		cmd   *exec.Cmd
 		label string
 	)
 	switch mode {

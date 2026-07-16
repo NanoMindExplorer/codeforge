@@ -31,7 +31,7 @@ type Block struct {
 	Body      string // raw text (markdown for assistant)
 	Collapsed bool
 	Foldable  bool
-	Streaming bool // still receiving chunks
+	Streaming bool   // still receiving chunks
 	Meta      string // e.g. "+12 -3" for diffs
 }
 

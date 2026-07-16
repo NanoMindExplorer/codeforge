@@ -20,13 +20,13 @@ type Item struct {
 
 // Model is the fuzzy overlay state.
 type Model struct {
-	Active  bool
-	Query   string
-	Items   []Item
+	Active   bool
+	Query    string
+	Items    []Item
 	Filtered []Item
-	Cursor  int
-	Width   int
-	Height  int
+	Cursor   int
+	Width    int
+	Height   int
 	// Done + Selected set when user confirms
 	Done     bool
 	Selected *Item
@@ -142,7 +142,7 @@ func (m Model) View() string {
 	}
 
 	title := lipgloss.NewStyle().Bold(true).Foreground(t.BorderGlow).Render("⌘ Command Palette")
-	input := lipgloss.NewStyle().Foreground(t.AccentAI).Render("> "+m.Query+"▌")
+	input := lipgloss.NewStyle().Foreground(t.AccentAI).Render("> " + m.Query + "▌")
 
 	maxShow := 10
 	if m.Height > 0 && m.Height/3 < maxShow {

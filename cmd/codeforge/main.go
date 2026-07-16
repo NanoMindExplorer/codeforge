@@ -415,8 +415,6 @@ func runSessionCLI(args []string) int {
 	}
 }
 
-
-
 func printBanner() {
 	fmt.Printf(`
 ╔══════════════════════════════════════════════════════════════╗
@@ -514,4 +512,3 @@ func sessionUsage() string {
   See docs/SESSION_MIGRATION.md
 `
 }
-

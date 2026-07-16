@@ -47,9 +47,9 @@ type SubJob struct {
 
 // SubJobManager tracks subagent jobs for the session.
 type SubJobManager struct {
-	mu    sync.RWMutex
-	jobs  map[string]*SubJob
-	seq   int
+	mu   sync.RWMutex
+	jobs map[string]*SubJob
+	seq  int
 	// OnUpdate optional TUI toast hook
 	OnUpdate func(j SubJob)
 }

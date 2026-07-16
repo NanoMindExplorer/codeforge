@@ -8,11 +8,11 @@ import (
 
 func TestDetectProviderFromKey(t *testing.T) {
 	cases := map[string]string{
-		"xai-abc":     "grok",
-		"sk-ant-xyz":  "claude",
-		"AIzaSyTest":  "gemini",
-		"sk-openai1":  "openai",
-		"random":      "",
+		"xai-abc":    "grok",
+		"sk-ant-xyz": "claude",
+		"AIzaSyTest": "gemini",
+		"sk-openai1": "openai",
+		"random":     "",
 	}
 	for k, want := range cases {
 		if got := DetectProviderFromKey(k); got != want {

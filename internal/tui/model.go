@@ -23,11 +23,11 @@ import (
 	"github.com/codeforge/tui/internal/index"
 	"github.com/codeforge/tui/internal/keymap"
 	"github.com/codeforge/tui/internal/onboarding"
+	"github.com/codeforge/tui/internal/pager"
 	"github.com/codeforge/tui/internal/permission"
+	"github.com/codeforge/tui/internal/personas"
 	"github.com/codeforge/tui/internal/provider"
 	"github.com/codeforge/tui/internal/rules"
-	"github.com/codeforge/tui/internal/pager"
-	"github.com/codeforge/tui/internal/personas"
 	"github.com/codeforge/tui/internal/sandbox"
 	"github.com/codeforge/tui/internal/session"
 	"github.com/codeforge/tui/internal/skills"
@@ -71,14 +71,14 @@ type Model struct {
 	showPanels  bool // side drawers Diff+Files
 	activePane  Pane // when panels on
 
-	chat    ChatModel
-	diff    DiffModel
-	context ContextModel
-	status  StatusBarModel
-	command CommandModel
-	palette palette.Model
-	picker  filepicker.Model
-	review  review.Model
+	chat     ChatModel
+	diff     DiffModel
+	context  ContextModel
+	status   StatusBarModel
+	command  CommandModel
+	palette  palette.Model
+	picker   filepicker.Model
+	review   review.Model
 	planUI   planreview.Model
 	slash    slashmenu.Model
 	themes   themepicker.Model
@@ -662,7 +662,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Text: msg.FirstToken.Text, Reasoning: msg.FirstToken.Reasoning, Done: msg.FirstToken.Done,
 			InputTokens: msg.FirstToken.InputTokens, OutputTokens: msg.FirstToken.OutputTokens,
 			ReasoningTokens: msg.FirstToken.ReasoningTokens,
-			Error:          msg.FirstToken.Error,
+			Error:           msg.FirstToken.Error,
 		})
 		m.chat = nc.(ChatModel)
 		if c != nil {
@@ -3661,7 +3661,7 @@ func pumpStream(ch <-chan provider.StreamToken) tea.Cmd {
 			Text: tok.Text, Reasoning: tok.Reasoning, Done: tok.Done,
 			InputTokens: tok.InputTokens, OutputTokens: tok.OutputTokens,
 			ReasoningTokens: tok.ReasoningTokens,
-			Error:          tok.Error,
+			Error:           tok.Error,
 		}
 	}
 }

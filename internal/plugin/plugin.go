@@ -23,7 +23,7 @@ type Manifest struct {
 	Description string            `yaml:"description"`
 	Version     string            `yaml:"version"`
 	Command     string            `yaml:"command"` // executable
-	Args        []string          `yaml:"args"`   // static args before JSON stdin
+	Args        []string          `yaml:"args"`    // static args before JSON stdin
 	Env         map[string]string `yaml:"env"`
 	TimeoutSec  int               `yaml:"timeout_sec"`
 	// InputSchema optional JSON-schema-like map for the agent

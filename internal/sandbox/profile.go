@@ -17,11 +17,11 @@ import (
 type Profile string
 
 const (
-	Off      Profile = "off"
+	Off       Profile = "off"
 	Workspace Profile = "workspace"
-	ReadOnly Profile = "read-only"
-	Strict   Profile = "strict"
-	Devbox   Profile = "devbox"
+	ReadOnly  Profile = "read-only"
+	Strict    Profile = "strict"
+	Devbox    Profile = "devbox"
 )
 
 // ParseProfile normalizes user input (flag, env, slash).
@@ -59,8 +59,8 @@ const (
 type Engine struct {
 	mu sync.RWMutex
 
-	Profile  Profile
-	WorkDir  string
+	Profile Profile
+	WorkDir string
 	// CodeforgeHome is ~/.codeforge (session + memory writes always allowed).
 	CodeforgeHome string
 	// Deny is extra denied path globs (soft always; bwrap bind-over when possible).

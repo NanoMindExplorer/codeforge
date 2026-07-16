@@ -1,4 +1,4 @@
-.PHONY: test build vet check-version bump release-dry release-notes release-gate smoke-matrix dogfood-help termux-meta ci
+.PHONY: test build vet fmt fmt-check install-hooks check-version bump release-dry release-notes release-gate smoke-matrix dogfood-help termux-meta ci
 
 VERSION := $(shell tr -d '[:space:]' < VERSION 2>/dev/null || echo 0.0.0)
 
@@ -7,6 +7,18 @@ test:
 
 vet:
 	GOSUMDB=off go vet ./...
+
+# Format all Go sources (run before commit if hooks not installed)
+fmt:
+	gofmt -w .
+
+# Fail if any file needs gofmt (CI / release-gate)
+fmt-check:
+	bash scripts/gofmt-check.sh
+
+# Enable repo pre-commit hook (gofmt staged *.go)
+install-hooks:
+	bash scripts/install-hooks.sh
 
 build:
 	CGO_ENABLED=0 go build -ldflags="-s -w -X main.ProjectVersion=$(VERSION)" -o codeforge ./cmd/codeforge/
@@ -48,5 +60,5 @@ dogfood-help:
 	@echo "Scorecard: docs/dogfood/SCORECARD.md"
 	@echo "Release:   docs/RELEASE_GATE.md · make release-gate"
 
-ci: check-version vet test build
+ci: check-version fmt-check vet test build
 	@echo "CI local gate OK (v$(VERSION))"

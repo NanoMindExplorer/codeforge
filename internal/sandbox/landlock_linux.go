@@ -18,7 +18,7 @@ const (
 	sysLandlockAddRule       = 445
 	sysLandlockRestrictSelf  = 446
 
-	landlockRuleTypePathBeneath = 1
+	landlockRuleTypePathBeneath  = 1
 	landlockCreateRulesetVersion = 1 << 0
 )
 

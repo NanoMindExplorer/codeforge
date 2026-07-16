@@ -11,12 +11,12 @@ type mockProv struct {
 	fail  bool
 }
 
-func (m *mockProv) Name() string                          { return "mock" }
-func (m *mockProv) Models() []ModelInfo                   { return nil }
-func (m *mockProv) Model() string                         { return "mock-think" }
-func (m *mockProv) SetModel(string) error                 { return nil }
-func (m *mockProv) CountTokens([]Message) int             { return 0 }
-func (m *mockProv) ValidateConfig() error                 { return nil }
+func (m *mockProv) Name() string              { return "mock" }
+func (m *mockProv) Models() []ModelInfo       { return nil }
+func (m *mockProv) Model() string             { return "mock-think" }
+func (m *mockProv) SetModel(string) error     { return nil }
+func (m *mockProv) CountTokens([]Message) int { return 0 }
+func (m *mockProv) ValidateConfig() error     { return nil }
 func (m *mockProv) Stream(context.Context, CompletionRequest) (<-chan StreamToken, error) {
 	return nil, errors.New("no stream")
 }

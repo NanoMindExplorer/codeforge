@@ -50,23 +50,23 @@ type ScrollbarConfig struct {
 }
 
 type ScrollConfig struct {
-	Margin           *int   `yaml:"margin" toml:"margin"`
-	MinPageFraction  *int   `yaml:"min_page_fraction" toml:"min_page_fraction"`
-	FollowIndicator  string `yaml:"follow_indicator" toml:"follow_indicator"` // center | none
-	FollowAutoSelect *bool  `yaml:"follow_auto_select" toml:"follow_auto_select"`
-	FollowByOverscroll *bool `yaml:"follow_by_overscroll" toml:"follow_by_overscroll"`
-	AnchorOnFold     *bool  `yaml:"anchor_on_fold" toml:"anchor_on_fold"`
+	Margin             *int   `yaml:"margin" toml:"margin"`
+	MinPageFraction    *int   `yaml:"min_page_fraction" toml:"min_page_fraction"`
+	FollowIndicator    string `yaml:"follow_indicator" toml:"follow_indicator"` // center | none
+	FollowAutoSelect   *bool  `yaml:"follow_auto_select" toml:"follow_auto_select"`
+	FollowByOverscroll *bool  `yaml:"follow_by_overscroll" toml:"follow_by_overscroll"`
+	AnchorOnFold       *bool  `yaml:"anchor_on_fold" toml:"anchor_on_fold"`
 }
 
 type DisplayConfig struct {
-	StickyHeaders           *bool   `yaml:"sticky_headers" toml:"sticky_headers"`
-	TabWidth                *int    `yaml:"tab_width" toml:"tab_width"`
-	ExpandableIndicator     *bool   `yaml:"expandable_indicator" toml:"expandable_indicator"`
-	ExpandableIndicatorChar string  `yaml:"expandable_indicator_char" toml:"expandable_indicator_char"`
-	CollapsedAccentChar     string  `yaml:"collapsed_accent_char" toml:"collapsed_accent_char"`
+	StickyHeaders           *bool    `yaml:"sticky_headers" toml:"sticky_headers"`
+	TabWidth                *int     `yaml:"tab_width" toml:"tab_width"`
+	ExpandableIndicator     *bool    `yaml:"expandable_indicator" toml:"expandable_indicator"`
+	ExpandableIndicatorChar string   `yaml:"expandable_indicator_char" toml:"expandable_indicator_char"`
+	CollapsedAccentChar     string   `yaml:"collapsed_accent_char" toml:"collapsed_accent_char"`
 	DimAccent               *float64 `yaml:"dim_accent" toml:"dim_accent"`
-	LineUnderLastEntry      *bool   `yaml:"line_under_last_entry" toml:"line_under_last_entry"`
-	SelectionButtons        *bool   `yaml:"selection_buttons" toml:"selection_buttons"`
+	LineUnderLastEntry      *bool    `yaml:"line_under_last_entry" toml:"line_under_last_entry"`
+	SelectionButtons        *bool    `yaml:"selection_buttons" toml:"selection_buttons"`
 }
 
 type AnimationConfig struct {
@@ -108,11 +108,11 @@ type ToolBlockConfig struct {
 }
 
 type ExecuteBlockConfig struct {
-	FirstLines             *int   `yaml:"first_lines" toml:"first_lines"`
-	LastLines              *int   `yaml:"last_lines" toml:"last_lines"`
-	AccentEnabled          *bool  `yaml:"accent_enabled" toml:"accent_enabled"`
-	HeaderStyle            string `yaml:"header_style" toml:"header_style"` // shell|label
-	MutedCommandCollapsed  *bool  `yaml:"muted_command_collapsed" toml:"muted_command_collapsed"`
+	FirstLines            *int   `yaml:"first_lines" toml:"first_lines"`
+	LastLines             *int   `yaml:"last_lines" toml:"last_lines"`
+	AccentEnabled         *bool  `yaml:"accent_enabled" toml:"accent_enabled"`
+	HeaderStyle           string `yaml:"header_style" toml:"header_style"` // shell|label
+	MutedCommandCollapsed *bool  `yaml:"muted_command_collapsed" toml:"muted_command_collapsed"`
 }
 
 type PromptBlockConfig struct {
@@ -139,19 +139,19 @@ type TerminalConfig struct {
 
 // UIKnobs are Grok [ui] settings that affect the pager session.
 type UIKnobs struct {
-	MaxThoughtsWidth          *int    `yaml:"max_thoughts_width" toml:"max_thoughts_width"`
-	ShowThinkingBlocks        *bool   `yaml:"show_thinking_blocks" toml:"show_thinking_blocks"`
-	GroupToolVerbs            *bool   `yaml:"group_tool_verbs" toml:"group_tool_verbs"`
-	ScreenMode                string  `yaml:"screen_mode" toml:"screen_mode"` // minimal|fullscreen
-	ScrollSpeed               *int    `yaml:"scroll_speed" toml:"scroll_speed"` // 1-100
-	ScrollMode                string  `yaml:"scroll_mode" toml:"scroll_mode"`   // auto|wheel|trackpad
-	ScrollLines               *int    `yaml:"scroll_lines" toml:"scroll_lines"`
-	InvertScroll              *bool   `yaml:"invert_scroll" toml:"invert_scroll"`
-	SimpleMode                *bool   `yaml:"simple_mode" toml:"simple_mode"`
-	VimMode                   *bool   `yaml:"vim_mode" toml:"vim_mode"`
-	CompactMode               *bool   `yaml:"compact_mode" toml:"compact_mode"`
-	DefaultSelectedPermission string  `yaml:"default_selected_permission" toml:"default_selected_permission"`
-	RememberToolApprovals     *bool   `yaml:"remember_tool_approvals" toml:"remember_tool_approvals"`
+	MaxThoughtsWidth          *int   `yaml:"max_thoughts_width" toml:"max_thoughts_width"`
+	ShowThinkingBlocks        *bool  `yaml:"show_thinking_blocks" toml:"show_thinking_blocks"`
+	GroupToolVerbs            *bool  `yaml:"group_tool_verbs" toml:"group_tool_verbs"`
+	ScreenMode                string `yaml:"screen_mode" toml:"screen_mode"`   // minimal|fullscreen
+	ScrollSpeed               *int   `yaml:"scroll_speed" toml:"scroll_speed"` // 1-100
+	ScrollMode                string `yaml:"scroll_mode" toml:"scroll_mode"`   // auto|wheel|trackpad
+	ScrollLines               *int   `yaml:"scroll_lines" toml:"scroll_lines"`
+	InvertScroll              *bool  `yaml:"invert_scroll" toml:"invert_scroll"`
+	SimpleMode                *bool  `yaml:"simple_mode" toml:"simple_mode"`
+	VimMode                   *bool  `yaml:"vim_mode" toml:"vim_mode"`
+	CompactMode               *bool  `yaml:"compact_mode" toml:"compact_mode"`
+	DefaultSelectedPermission string `yaml:"default_selected_permission" toml:"default_selected_permission"`
+	RememberToolApprovals     *bool  `yaml:"remember_tool_approvals" toml:"remember_tool_approvals"`
 }
 
 var (
@@ -225,8 +225,8 @@ func Defaults() Config {
 				VPad: &t, Bg: "light", ShowPrefix: &t,
 			},
 		},
-		Prompt: PromptConfig{CollapseUnfocused: &t, MouseHover: &t, ShowPrefix: &t},
-		Todo:   TodoConfig{BadgeFormat: "default"},
+		Prompt:   PromptConfig{CollapseUnfocused: &t, MouseHover: &t, ShowPrefix: &t},
+		Todo:     TodoConfig{BadgeFormat: "default"},
 		Terminal: TerminalConfig{AltScreen: "auto"},
 		UI: UIKnobs{
 			MaxThoughtsWidth: &thoughts120, ShowThinkingBlocks: &t, GroupToolVerbs: &t,
@@ -300,12 +300,12 @@ func loadFile(path string) (Config, error) {
 					Display   DisplayConfig   `yaml:"display"`
 					Blocks    BlocksConfig    `yaml:"blocks"`
 				} `yaml:"scrollback"`
-				Animation AnimationConfig `yaml:"animation"`
-				Prompt    PromptConfig    `yaml:"prompt"`
-				Todo      TodoConfig      `yaml:"todo"`
-				Terminal  TerminalConfig  `yaml:"terminal"`
-				UI        UIKnobs         `yaml:"ui"`
-				DisablePlugins bool       `yaml:"disable_plugins"`
+				Animation      AnimationConfig `yaml:"animation"`
+				Prompt         PromptConfig    `yaml:"prompt"`
+				Todo           TodoConfig      `yaml:"todo"`
+				Terminal       TerminalConfig  `yaml:"terminal"`
+				UI             UIKnobs         `yaml:"ui"`
+				DisablePlugins bool            `yaml:"disable_plugins"`
 			}
 			if err2 := yaml.Unmarshal(data, &wrap); err2 != nil {
 				return Config{}, err

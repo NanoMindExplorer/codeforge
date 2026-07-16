@@ -1,486 +1,486 @@
 package config
 
 import (
-    "fmt"
-    "os"
-    "path/filepath"
-    "strings"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
-    "github.com/spf13/viper"
+	"github.com/spf13/viper"
 )
 
 type Config struct {
-    DefaultProvider string              `mapstructure:"default_provider"`
-    Providers       map[string]Provider `mapstructure:"providers"`
-    Theme           string              `mapstructure:"theme"`
-    DiffMode        string              `mapstructure:"diff_mode"` // side-by-side | unified
-    NoMotion        bool                `mapstructure:"no_motion"`
-    Git             GitConfig           `mapstructure:"git"`
-    Permissions     PermissionsConfig   `mapstructure:"permissions"`
-    Workspace       WorkspaceConfig     `mapstructure:"workspace"`
-    Budget          BudgetConfig        `mapstructure:"budget"`
-    MCP             MCPConfig           `mapstructure:"mcp"`
-    Plugins         PluginsConfig       `mapstructure:"plugins"`
-    Telemetry       TelemetryConfig     `mapstructure:"telemetry"`
-    UI              UIConfig            `mapstructure:"ui"`
-    Session         SessionConfig       `mapstructure:"session"`
-    // Sandbox is Grok-compatible OS shell sandbox (Phase G4).
-    Sandbox         SandboxConfig       `mapstructure:"sandbox"`
-    // Skills is Grok-compatible SKILL.md packages (Phase G5).
-    Skills          SkillsConfig        `mapstructure:"skills"`
-    // Subagents configures personas (Phase G6).
-    Subagents       SubagentsConfig     `mapstructure:"subagents"`
+	DefaultProvider string              `mapstructure:"default_provider"`
+	Providers       map[string]Provider `mapstructure:"providers"`
+	Theme           string              `mapstructure:"theme"`
+	DiffMode        string              `mapstructure:"diff_mode"` // side-by-side | unified
+	NoMotion        bool                `mapstructure:"no_motion"`
+	Git             GitConfig           `mapstructure:"git"`
+	Permissions     PermissionsConfig   `mapstructure:"permissions"`
+	Workspace       WorkspaceConfig     `mapstructure:"workspace"`
+	Budget          BudgetConfig        `mapstructure:"budget"`
+	MCP             MCPConfig           `mapstructure:"mcp"`
+	Plugins         PluginsConfig       `mapstructure:"plugins"`
+	Telemetry       TelemetryConfig     `mapstructure:"telemetry"`
+	UI              UIConfig            `mapstructure:"ui"`
+	Session         SessionConfig       `mapstructure:"session"`
+	// Sandbox is Grok-compatible OS shell sandbox (Phase G4).
+	Sandbox SandboxConfig `mapstructure:"sandbox"`
+	// Skills is Grok-compatible SKILL.md packages (Phase G5).
+	Skills SkillsConfig `mapstructure:"skills"`
+	// Subagents configures personas (Phase G6).
+	Subagents SubagentsConfig `mapstructure:"subagents"`
 }
 
 // SubagentsConfig holds persona overlays for spawn_subagent.
 type SubagentsConfig struct {
-    // Personas map name → persona (overrides files).
-    Personas map[string]SubagentPersona `mapstructure:"personas"`
-    // ExtraDirs additional persona directories.
-    ExtraDirs []string `mapstructure:"extra_dirs"`
+	// Personas map name → persona (overrides files).
+	Personas map[string]SubagentPersona `mapstructure:"personas"`
+	// ExtraDirs additional persona directories.
+	ExtraDirs []string `mapstructure:"extra_dirs"`
 }
 
 // SubagentPersona is config-file shape for a persona.
 type SubagentPersona struct {
-    Description      string `mapstructure:"description"`
-    Instructions     string `mapstructure:"instructions"`
-    InstructionsFile string `mapstructure:"instructions_file"`
-    Model            string `mapstructure:"model"`
-    DefaultIsolation string `mapstructure:"default_isolation"`
+	Description      string `mapstructure:"description"`
+	Instructions     string `mapstructure:"instructions"`
+	InstructionsFile string `mapstructure:"instructions_file"`
+	Model            string `mapstructure:"model"`
+	DefaultIsolation string `mapstructure:"default_isolation"`
 }
 
 // SandboxConfig selects a profile: off | workspace | read-only | strict | devbox.
 type SandboxConfig struct {
-    // Profile default when --sandbox / CODEFORGE_SANDBOX not set.
-    Profile string `mapstructure:"profile"`
-    // Deny extra paths/globs blocked for read+write (soft always; bwrap when available).
-    Deny []string `mapstructure:"deny"`
+	// Profile default when --sandbox / CODEFORGE_SANDBOX not set.
+	Profile string `mapstructure:"profile"`
+	// Deny extra paths/globs blocked for read+write (soft always; bwrap when available).
+	Deny []string `mapstructure:"deny"`
 }
 
 // SkillsConfig discovers reusable SKILL.md packages (Grok-compatible).
 type SkillsConfig struct {
-    // Paths additional skill roots (files or directories).
-    Paths []string `mapstructure:"paths"`
-    // Ignore path prefixes to skip entirely.
-    Ignore []string `mapstructure:"ignore"`
-    // Disabled skill names (listed but not injected / not invocable).
-    Disabled []string `mapstructure:"disabled"`
-    // CompatClaude scan .claude/skills (default true).
-    CompatClaude *bool `mapstructure:"compat_claude"`
-    // CompatCursor scan .cursor/skills (default true).
-    CompatCursor *bool `mapstructure:"compat_cursor"`
+	// Paths additional skill roots (files or directories).
+	Paths []string `mapstructure:"paths"`
+	// Ignore path prefixes to skip entirely.
+	Ignore []string `mapstructure:"ignore"`
+	// Disabled skill names (listed but not injected / not invocable).
+	Disabled []string `mapstructure:"disabled"`
+	// CompatClaude scan .claude/skills (default true).
+	CompatClaude *bool `mapstructure:"compat_claude"`
+	// CompatCursor scan .cursor/skills (default true).
+	CompatCursor *bool `mapstructure:"compat_cursor"`
 }
 
 // SessionConfig controls session lifecycle (Phase 4).
 type SessionConfig struct {
-    // AutoCompactPct triggers /compact when tokens reach this fraction of max context (0–1).
-    AutoCompactPct float64 `mapstructure:"auto_compact_pct"`
+	// AutoCompactPct triggers /compact when tokens reach this fraction of max context (0–1).
+	AutoCompactPct float64 `mapstructure:"auto_compact_pct"`
 }
 
 // UIConfig matches Grok [ui] knobs used by CodeForge (+ pager.toml [ui]).
 type UIConfig struct {
-    // VimMode enables j/k/h/l/g/G single-letter scrollback bindings (Grok vim_mode).
-    VimMode     bool `mapstructure:"vim_mode"`
-    CompactMode bool `mapstructure:"compact_mode"`
-    // Theme overrides top-level theme when set (Grok [ui].theme).
-    Theme string `mapstructure:"theme"`
-    // AutoDarkTheme / AutoLightTheme map system appearance when theme=auto.
-    AutoDarkTheme  string `mapstructure:"auto_dark_theme"`
-    AutoLightTheme string `mapstructure:"auto_light_theme"`
-    // SimpleMode: true = readline prompt (default), false = experimental vim prompt.
-    SimpleMode *bool `mapstructure:"simple_mode"`
-    // ShowThinkingBlocks controls thinking/reasoning blocks in scrollback.
-    ShowThinkingBlocks *bool `mapstructure:"show_thinking_blocks"`
-    // MaxThoughtsWidth caps reasoning column width.
-    MaxThoughtsWidth *int `mapstructure:"max_thoughts_width"`
-    // GroupToolVerbs folds consecutive read/search tool rows.
-    GroupToolVerbs *bool `mapstructure:"group_tool_verbs"`
-    // ScreenMode: minimal | fullscreen
-    ScreenMode string `mapstructure:"screen_mode"`
-    // Scroll knobs (also in pager.toml)
-    ScrollSpeed  *int   `mapstructure:"scroll_speed"`
-    ScrollMode   string `mapstructure:"scroll_mode"`
-    ScrollLines  *int   `mapstructure:"scroll_lines"`
-    InvertScroll *bool  `mapstructure:"invert_scroll"`
-    // DefaultSelectedPermission: always_allow_all_sessions | allow_command_always | allow_once | reject
-    DefaultSelectedPermission string `mapstructure:"default_selected_permission"`
-    RememberToolApprovals     *bool  `mapstructure:"remember_tool_approvals"`
+	// VimMode enables j/k/h/l/g/G single-letter scrollback bindings (Grok vim_mode).
+	VimMode     bool `mapstructure:"vim_mode"`
+	CompactMode bool `mapstructure:"compact_mode"`
+	// Theme overrides top-level theme when set (Grok [ui].theme).
+	Theme string `mapstructure:"theme"`
+	// AutoDarkTheme / AutoLightTheme map system appearance when theme=auto.
+	AutoDarkTheme  string `mapstructure:"auto_dark_theme"`
+	AutoLightTheme string `mapstructure:"auto_light_theme"`
+	// SimpleMode: true = readline prompt (default), false = experimental vim prompt.
+	SimpleMode *bool `mapstructure:"simple_mode"`
+	// ShowThinkingBlocks controls thinking/reasoning blocks in scrollback.
+	ShowThinkingBlocks *bool `mapstructure:"show_thinking_blocks"`
+	// MaxThoughtsWidth caps reasoning column width.
+	MaxThoughtsWidth *int `mapstructure:"max_thoughts_width"`
+	// GroupToolVerbs folds consecutive read/search tool rows.
+	GroupToolVerbs *bool `mapstructure:"group_tool_verbs"`
+	// ScreenMode: minimal | fullscreen
+	ScreenMode string `mapstructure:"screen_mode"`
+	// Scroll knobs (also in pager.toml)
+	ScrollSpeed  *int   `mapstructure:"scroll_speed"`
+	ScrollMode   string `mapstructure:"scroll_mode"`
+	ScrollLines  *int   `mapstructure:"scroll_lines"`
+	InvertScroll *bool  `mapstructure:"invert_scroll"`
+	// DefaultSelectedPermission: always_allow_all_sessions | allow_command_always | allow_once | reject
+	DefaultSelectedPermission string `mapstructure:"default_selected_permission"`
+	RememberToolApprovals     *bool  `mapstructure:"remember_tool_approvals"`
 }
 
 // PluginsConfig lists extra plugin search directories.
 type PluginsConfig struct {
-    Dirs []string `mapstructure:"dirs"`
+	Dirs []string `mapstructure:"dirs"`
 }
 
 // TelemetryConfig is privacy-first opt-in analytics (default off).
 type TelemetryConfig struct {
-    Enabled   bool   `mapstructure:"enabled"`
-    Endpoint  string `mapstructure:"endpoint"`
-    LocalOnly bool   `mapstructure:"local_only"`
+	Enabled   bool   `mapstructure:"enabled"`
+	Endpoint  string `mapstructure:"endpoint"`
+	LocalOnly bool   `mapstructure:"local_only"`
 }
 
 // BudgetConfig limits spend and can block further agent calls.
 type BudgetConfig struct {
-    // MaxCostUSD hard-stops agent/chat submits when totalCost exceeds this (0 = unlimited)
-    MaxCostUSD float64 `mapstructure:"max_cost_usd"`
-    // WarnAtUSD shows a toast when cost crosses this (0 = 50% of max if max set)
-    WarnAtUSD float64 `mapstructure:"warn_at_usd"`
+	// MaxCostUSD hard-stops agent/chat submits when totalCost exceeds this (0 = unlimited)
+	MaxCostUSD float64 `mapstructure:"max_cost_usd"`
+	// WarnAtUSD shows a toast when cost crosses this (0 = 50% of max if max set)
+	WarnAtUSD float64 `mapstructure:"warn_at_usd"`
 }
 
 // MCPConfig lists stdio MCP servers to attach at startup.
 type MCPConfig struct {
-    Servers []MCPServer `mapstructure:"servers"`
+	Servers []MCPServer `mapstructure:"servers"`
 }
 
 // MCPServer is one MCP stdio server entry.
 type MCPServer struct {
-    Name    string            `mapstructure:"name"`
-    Command string            `mapstructure:"command"`
-    Args    []string          `mapstructure:"args"`
-    Env     map[string]string `mapstructure:"env"`
+	Name    string            `mapstructure:"name"`
+	Command string            `mapstructure:"command"`
+	Args    []string          `mapstructure:"args"`
+	Env     map[string]string `mapstructure:"env"`
 }
 
 // WorkspaceConfig enables multi-root monorepo support.
 type WorkspaceConfig struct {
-    // ExtraRoots are additional project roots (relative to primary or absolute).
-    ExtraRoots []string `mapstructure:"extra_roots"`
-    // IgnoreDirs overrides default directory ignore list when non-empty.
-    IgnoreDirs []string `mapstructure:"ignore_dirs"`
+	// ExtraRoots are additional project roots (relative to primary or absolute).
+	ExtraRoots []string `mapstructure:"extra_roots"`
+	// IgnoreDirs overrides default directory ignore list when non-empty.
+	IgnoreDirs []string `mapstructure:"ignore_dirs"`
 }
 
 type Provider struct {
-    Enabled      bool                 `mapstructure:"enabled"`
-    Type         string               `mapstructure:"type"`
-    APIKey       string               `mapstructure:"api_key"`
-    Endpoint     string               `mapstructure:"endpoint"`
-    DefaultModel string               `mapstructure:"default_model"`
-    Capabilities ProviderCapabilities `mapstructure:"capabilities"`
+	Enabled      bool                 `mapstructure:"enabled"`
+	Type         string               `mapstructure:"type"`
+	APIKey       string               `mapstructure:"api_key"`
+	Endpoint     string               `mapstructure:"endpoint"`
+	DefaultModel string               `mapstructure:"default_model"`
+	Capabilities ProviderCapabilities `mapstructure:"capabilities"`
 }
 
 type ProviderCapabilities struct {
-    Streaming  bool `mapstructure:"streaming"`
-    ToolUse    bool `mapstructure:"tool_use"`
-    Vision     bool `mapstructure:"vision"`
-    MaxContext int  `mapstructure:"max_context"`
+	Streaming  bool `mapstructure:"streaming"`
+	ToolUse    bool `mapstructure:"tool_use"`
+	Vision     bool `mapstructure:"vision"`
+	MaxContext int  `mapstructure:"max_context"`
 }
 
 type GitConfig struct {
-    AutoCommit   bool   `mapstructure:"auto_commit"`
-    CommitStyle  string `mapstructure:"commit_style"`
-    BranchPrefix string `mapstructure:"branch_prefix"`
+	AutoCommit   bool   `mapstructure:"auto_commit"`
+	CommitStyle  string `mapstructure:"commit_style"`
+	BranchPrefix string `mapstructure:"branch_prefix"`
 }
 
 type PermissionsConfig struct {
-    RequireConfirmWrite bool `mapstructure:"require_confirm_write"`
-    RequireConfirmShell bool `mapstructure:"require_confirm_shell"`
-    RequireConfirmPush  bool `mapstructure:"require_confirm_push"`
-    // Mode: default | plan | always_approve | dont_ask (Phase 6)
-    Mode string `mapstructure:"mode"`
-    // Rules is the allow/deny/ask list.
-    Rules []PermissionRule `mapstructure:"rules"`
+	RequireConfirmWrite bool `mapstructure:"require_confirm_write"`
+	RequireConfirmShell bool `mapstructure:"require_confirm_shell"`
+	RequireConfirmPush  bool `mapstructure:"require_confirm_push"`
+	// Mode: default | plan | always_approve | dont_ask (Phase 6)
+	Mode string `mapstructure:"mode"`
+	// Rules is the allow/deny/ask list.
+	Rules []PermissionRule `mapstructure:"rules"`
 }
 
 // PermissionRule is one allow/deny/ask entry.
 type PermissionRule struct {
-    Tool    string `mapstructure:"tool" yaml:"tool"`
-    Pattern string `mapstructure:"pattern" yaml:"pattern"`
-    Effect  string `mapstructure:"effect" yaml:"effect"` // deny | ask | allow
+	Tool    string `mapstructure:"tool" yaml:"tool"`
+	Pattern string `mapstructure:"pattern" yaml:"pattern"`
+	Effect  string `mapstructure:"effect" yaml:"effect"` // deny | ask | allow
 }
 
 func Default() *Config {
-    return &Config{
-        DefaultProvider: "grok",
-        Theme:           "groknight",
-        DiffMode:        "unified",
-        NoMotion:        false,
-        Providers: map[string]Provider{
-            "grok": {
-                Enabled:      true,
-                Type:         "xai",
-                APIKey:       "",
-                DefaultModel: "grok-4.5",
-                Capabilities: ProviderCapabilities{
-                    Streaming:  true,
-                    ToolUse:    true,
-                    Vision:     true,
-                    MaxContext: 500000,
-                },
-            },
-            "gemini": {
-                Enabled:      true,
-                Type:         "google",
-                APIKey:       "",
-                DefaultModel: "gemini-2.5-flash",
-                Capabilities: ProviderCapabilities{
-                    Streaming:  true,
-                    ToolUse:    true,
-                    Vision:     true,
-                    MaxContext: 1048576,
-                },
-            },
-            "claude": {
-                Enabled:      true,
-                Type:         "anthropic",
-                APIKey:       "",
-                DefaultModel: "claude-sonnet-4-20250514",
-                Capabilities: ProviderCapabilities{
-                    Streaming:  true,
-                    ToolUse:    true,
-                    Vision:     true,
-                    MaxContext: 200000,
-                },
-            },
-            "openai": {
-                Enabled:      true,
-                Type:         "openai",
-                APIKey:       "",
-                DefaultModel: "gpt-4o-mini",
-                Capabilities: ProviderCapabilities{
-                    Streaming:  true,
-                    ToolUse:    true,
-                    Vision:     true,
-                    MaxContext: 128000,
-                },
-            },
-        },
-        Git: GitConfig{
-            AutoCommit:   true,
-            CommitStyle:  "conventional",
-            BranchPrefix: "ai/",
-        },
-        Permissions: PermissionsConfig{
-            RequireConfirmWrite: true,
-            RequireConfirmShell: true,
-            RequireConfirmPush:  true,
-            Mode:                "default",
-            Rules:               nil,
-        },
-        Workspace: WorkspaceConfig{
-            ExtraRoots: nil,
-            IgnoreDirs: nil,
-        },
-        Budget: BudgetConfig{
-            MaxCostUSD: 0,
-            WarnAtUSD:  0,
-        },
-        MCP: MCPConfig{Servers: nil},
-        Plugins: PluginsConfig{Dirs: nil},
-        Telemetry: TelemetryConfig{
-            Enabled:   false,
-            LocalOnly: true,
-        },
-        UI: UIConfig{
-            VimMode:        false,
-            CompactMode:    false,
-            Theme:          "",
-            AutoDarkTheme:  "groknight",
-            AutoLightTheme: "grokday",
-        },
-        Session: SessionConfig{
-            AutoCompactPct: 0.85,
-        },
-        Sandbox: SandboxConfig{
-            Profile: "off",
-            Deny:    nil,
-        },
-        Skills: SkillsConfig{
-            Paths:    nil,
-            Ignore:   nil,
-            Disabled: nil,
-        },
-        Subagents: SubagentsConfig{
-            Personas:  nil,
-            ExtraDirs: nil,
-        },
-    }
+	return &Config{
+		DefaultProvider: "grok",
+		Theme:           "groknight",
+		DiffMode:        "unified",
+		NoMotion:        false,
+		Providers: map[string]Provider{
+			"grok": {
+				Enabled:      true,
+				Type:         "xai",
+				APIKey:       "",
+				DefaultModel: "grok-4.5",
+				Capabilities: ProviderCapabilities{
+					Streaming:  true,
+					ToolUse:    true,
+					Vision:     true,
+					MaxContext: 500000,
+				},
+			},
+			"gemini": {
+				Enabled:      true,
+				Type:         "google",
+				APIKey:       "",
+				DefaultModel: "gemini-2.5-flash",
+				Capabilities: ProviderCapabilities{
+					Streaming:  true,
+					ToolUse:    true,
+					Vision:     true,
+					MaxContext: 1048576,
+				},
+			},
+			"claude": {
+				Enabled:      true,
+				Type:         "anthropic",
+				APIKey:       "",
+				DefaultModel: "claude-sonnet-4-20250514",
+				Capabilities: ProviderCapabilities{
+					Streaming:  true,
+					ToolUse:    true,
+					Vision:     true,
+					MaxContext: 200000,
+				},
+			},
+			"openai": {
+				Enabled:      true,
+				Type:         "openai",
+				APIKey:       "",
+				DefaultModel: "gpt-4o-mini",
+				Capabilities: ProviderCapabilities{
+					Streaming:  true,
+					ToolUse:    true,
+					Vision:     true,
+					MaxContext: 128000,
+				},
+			},
+		},
+		Git: GitConfig{
+			AutoCommit:   true,
+			CommitStyle:  "conventional",
+			BranchPrefix: "ai/",
+		},
+		Permissions: PermissionsConfig{
+			RequireConfirmWrite: true,
+			RequireConfirmShell: true,
+			RequireConfirmPush:  true,
+			Mode:                "default",
+			Rules:               nil,
+		},
+		Workspace: WorkspaceConfig{
+			ExtraRoots: nil,
+			IgnoreDirs: nil,
+		},
+		Budget: BudgetConfig{
+			MaxCostUSD: 0,
+			WarnAtUSD:  0,
+		},
+		MCP:     MCPConfig{Servers: nil},
+		Plugins: PluginsConfig{Dirs: nil},
+		Telemetry: TelemetryConfig{
+			Enabled:   false,
+			LocalOnly: true,
+		},
+		UI: UIConfig{
+			VimMode:        false,
+			CompactMode:    false,
+			Theme:          "",
+			AutoDarkTheme:  "groknight",
+			AutoLightTheme: "grokday",
+		},
+		Session: SessionConfig{
+			AutoCompactPct: 0.85,
+		},
+		Sandbox: SandboxConfig{
+			Profile: "off",
+			Deny:    nil,
+		},
+		Skills: SkillsConfig{
+			Paths:    nil,
+			Ignore:   nil,
+			Disabled: nil,
+		},
+		Subagents: SubagentsConfig{
+			Personas:  nil,
+			ExtraDirs: nil,
+		},
+	}
 }
 
 // SkillsCompatClaude returns whether Claude skill dirs are scanned (default true).
 func (c *Config) SkillsCompatClaude() bool {
-    if c == nil || c.Skills.CompatClaude == nil {
-        return true
-    }
-    return *c.Skills.CompatClaude
+	if c == nil || c.Skills.CompatClaude == nil {
+		return true
+	}
+	return *c.Skills.CompatClaude
 }
 
 // SkillsCompatCursor returns whether Cursor skill dirs are scanned (default true).
 func (c *Config) SkillsCompatCursor() bool {
-    if c == nil || c.Skills.CompatCursor == nil {
-        return true
-    }
-    return *c.Skills.CompatCursor
+	if c == nil || c.Skills.CompatCursor == nil {
+		return true
+	}
+	return *c.Skills.CompatCursor
 }
 
 func ConfigDir() (string, error) {
-    home, err := os.UserHomeDir()
-    if err != nil {
-        return "", err
-    }
-    return filepath.Join(home, ".config", "codeforge"), nil
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config", "codeforge"), nil
 }
 
 func Load() (*Config, error) {
-    cfg := Default()
-    v := viper.New()
-    v.SetConfigType("yaml")
-    v.SetDefault("default_provider", cfg.DefaultProvider)
-    v.SetDefault("theme", cfg.Theme)
-    v.SetDefault("git.auto_commit", cfg.Git.AutoCommit)
-    v.SetDefault("git.commit_style", cfg.Git.CommitStyle)
-    v.SetDefault("git.branch_prefix", cfg.Git.BranchPrefix)
-    v.SetDefault("permissions.require_confirm_write", cfg.Permissions.RequireConfirmWrite)
-    v.SetDefault("permissions.require_confirm_shell", cfg.Permissions.RequireConfirmShell)
-    v.SetDefault("permissions.require_confirm_push", cfg.Permissions.RequireConfirmPush)
+	cfg := Default()
+	v := viper.New()
+	v.SetConfigType("yaml")
+	v.SetDefault("default_provider", cfg.DefaultProvider)
+	v.SetDefault("theme", cfg.Theme)
+	v.SetDefault("git.auto_commit", cfg.Git.AutoCommit)
+	v.SetDefault("git.commit_style", cfg.Git.CommitStyle)
+	v.SetDefault("git.branch_prefix", cfg.Git.BranchPrefix)
+	v.SetDefault("permissions.require_confirm_write", cfg.Permissions.RequireConfirmWrite)
+	v.SetDefault("permissions.require_confirm_shell", cfg.Permissions.RequireConfirmShell)
+	v.SetDefault("permissions.require_confirm_push", cfg.Permissions.RequireConfirmPush)
 
-    cfgDir, _ := ConfigDir()
-    v.AddConfigPath(cfgDir)
-    v.AddConfigPath(".")
-    v.SetConfigName("config")
+	cfgDir, _ := ConfigDir()
+	v.AddConfigPath(cfgDir)
+	v.AddConfigPath(".")
+	v.SetConfigName("config")
 
-    _ = v.BindEnv("providers.claude.api_key", "ANTHROPIC_API_KEY")
-    _ = v.BindEnv("providers.gemini.api_key", "GEMINI_API_KEY")
-    _ = v.BindEnv("providers.openai.api_key", "OPENAI_API_KEY")
-    _ = v.BindEnv("providers.grok.api_key", "XAI_API_KEY")
-    _ = v.BindEnv("providers.xai.api_key", "XAI_API_KEY")
-    _ = v.BindEnv("sandbox.profile", "CODEFORGE_SANDBOX")
-    _ = v.BindEnv("theme", "CODEFORGE_THEME")
+	_ = v.BindEnv("providers.claude.api_key", "ANTHROPIC_API_KEY")
+	_ = v.BindEnv("providers.gemini.api_key", "GEMINI_API_KEY")
+	_ = v.BindEnv("providers.openai.api_key", "OPENAI_API_KEY")
+	_ = v.BindEnv("providers.grok.api_key", "XAI_API_KEY")
+	_ = v.BindEnv("providers.xai.api_key", "XAI_API_KEY")
+	_ = v.BindEnv("sandbox.profile", "CODEFORGE_SANDBOX")
+	_ = v.BindEnv("theme", "CODEFORGE_THEME")
 
-    if err := v.ReadInConfig(); err != nil {
-        // file not found OK
-    }
+	if err := v.ReadInConfig(); err != nil {
+		// file not found OK
+	}
 
-    if err := v.Unmarshal(cfg); err != nil {
-        return nil, fmt.Errorf("unmarshal: %w", err)
-    }
+	if err := v.Unmarshal(cfg); err != nil {
+		return nil, fmt.Errorf("unmarshal: %w", err)
+	}
 
-    if cfg.Providers == nil {
-        cfg.Providers = make(map[string]Provider)
-    }
-    // Fill empty API keys from env (deep-merge friendly)
-    fillKey := func(name string, envs ...string) {
-        p, ok := cfg.Providers[name]
-        if !ok {
-            p = Provider{Enabled: true, Type: name}
-        }
-        if p.APIKey == "" {
-            for _, e := range envs {
-                if v := os.Getenv(e); v != "" {
-                    p.APIKey = v
-                    break
-                }
-            }
-        }
-        cfg.Providers[name] = p
-    }
-    fillKey("claude", "ANTHROPIC_API_KEY")
-    fillKey("gemini", "GEMINI_API_KEY")
-    fillKey("openai", "OPENAI_API_KEY")
-    fillKey("grok", "XAI_API_KEY", "GROK_API_KEY")
-    fillKey("xai", "XAI_API_KEY", "GROK_API_KEY")
-    return cfg, nil
+	if cfg.Providers == nil {
+		cfg.Providers = make(map[string]Provider)
+	}
+	// Fill empty API keys from env (deep-merge friendly)
+	fillKey := func(name string, envs ...string) {
+		p, ok := cfg.Providers[name]
+		if !ok {
+			p = Provider{Enabled: true, Type: name}
+		}
+		if p.APIKey == "" {
+			for _, e := range envs {
+				if v := os.Getenv(e); v != "" {
+					p.APIKey = v
+					break
+				}
+			}
+		}
+		cfg.Providers[name] = p
+	}
+	fillKey("claude", "ANTHROPIC_API_KEY")
+	fillKey("gemini", "GEMINI_API_KEY")
+	fillKey("openai", "OPENAI_API_KEY")
+	fillKey("grok", "XAI_API_KEY", "GROK_API_KEY")
+	fillKey("xai", "XAI_API_KEY", "GROK_API_KEY")
+	return cfg, nil
 }
 
 // SaveProviderKey writes/updates providers.<name>.api_key (and optional model) in config.yaml.
 func SaveProviderKey(name, apiKey, model string) error {
-    name = strings.ToLower(strings.TrimSpace(name))
-    if name == "xai" {
-        name = "grok"
-    }
-    if name == "" || strings.TrimSpace(apiKey) == "" {
-        return fmt.Errorf("provider and api key required")
-    }
-    cfg, err := Load()
-    if err != nil || cfg == nil {
-        cfg = Default()
-    }
-    if cfg.Providers == nil {
-        cfg.Providers = map[string]Provider{}
-    }
-    p := cfg.Providers[name]
-    p.Enabled = true
-    p.APIKey = strings.TrimSpace(apiKey)
-    if model != "" {
-        p.DefaultModel = model
-    }
-    if p.Type == "" {
-        switch name {
-        case "grok":
-            p.Type = "xai"
-        case "claude":
-            p.Type = "anthropic"
-        default:
-            p.Type = name
-        }
-    }
-    cfg.Providers[name] = p
-    return writeConfig(cfg)
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "xai" {
+		name = "grok"
+	}
+	if name == "" || strings.TrimSpace(apiKey) == "" {
+		return fmt.Errorf("provider and api key required")
+	}
+	cfg, err := Load()
+	if err != nil || cfg == nil {
+		cfg = Default()
+	}
+	if cfg.Providers == nil {
+		cfg.Providers = map[string]Provider{}
+	}
+	p := cfg.Providers[name]
+	p.Enabled = true
+	p.APIKey = strings.TrimSpace(apiKey)
+	if model != "" {
+		p.DefaultModel = model
+	}
+	if p.Type == "" {
+		switch name {
+		case "grok":
+			p.Type = "xai"
+		case "claude":
+			p.Type = "anthropic"
+		default:
+			p.Type = name
+		}
+	}
+	cfg.Providers[name] = p
+	return writeConfig(cfg)
 }
 
 // SaveDefaultProvider sets default_provider in config.yaml.
 func SaveDefaultProvider(name string) error {
-    name = strings.ToLower(strings.TrimSpace(name))
-    if name == "" {
-        return fmt.Errorf("provider name required")
-    }
-    cfg, err := Load()
-    if err != nil || cfg == nil {
-        cfg = Default()
-    }
-    cfg.DefaultProvider = name
-    return writeConfig(cfg)
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		return fmt.Errorf("provider name required")
+	}
+	cfg, err := Load()
+	if err != nil || cfg == nil {
+		cfg = Default()
+	}
+	cfg.DefaultProvider = name
+	return writeConfig(cfg)
 }
 
 func writeConfig(cfg *Config) error {
-    cfgDir, err := ConfigDir()
-    if err != nil {
-        return err
-    }
-    if err := os.MkdirAll(cfgDir, 0755); err != nil {
-        return err
-    }
-    path := filepath.Join(cfgDir, "config.yaml")
-    // Merge carefully: load existing file as viper map if present
-    v := viper.New()
-    v.SetConfigType("yaml")
-    v.SetConfigFile(path)
-    _ = v.ReadInConfig() // ignore missing
+	cfgDir, err := ConfigDir()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		return err
+	}
+	path := filepath.Join(cfgDir, "config.yaml")
+	// Merge carefully: load existing file as viper map if present
+	v := viper.New()
+	v.SetConfigType("yaml")
+	v.SetConfigFile(path)
+	_ = v.ReadInConfig() // ignore missing
 
-    v.Set("default_provider", cfg.DefaultProvider)
-    if cfg.Theme != "" {
-        v.Set("theme", cfg.Theme)
-    }
-    for name, p := range cfg.Providers {
-        prefix := "providers." + name
-        v.Set(prefix+".enabled", p.Enabled)
-        if p.Type != "" {
-            v.Set(prefix+".type", p.Type)
-        }
-        if p.APIKey != "" {
-            v.Set(prefix+".api_key", p.APIKey)
-        }
-        if p.DefaultModel != "" {
-            v.Set(prefix+".default_model", p.DefaultModel)
-        }
-        if p.Endpoint != "" {
-            v.Set(prefix+".endpoint", p.Endpoint)
-        }
-    }
-    return v.WriteConfigAs(path)
+	v.Set("default_provider", cfg.DefaultProvider)
+	if cfg.Theme != "" {
+		v.Set("theme", cfg.Theme)
+	}
+	for name, p := range cfg.Providers {
+		prefix := "providers." + name
+		v.Set(prefix+".enabled", p.Enabled)
+		if p.Type != "" {
+			v.Set(prefix+".type", p.Type)
+		}
+		if p.APIKey != "" {
+			v.Set(prefix+".api_key", p.APIKey)
+		}
+		if p.DefaultModel != "" {
+			v.Set(prefix+".default_model", p.DefaultModel)
+		}
+		if p.Endpoint != "" {
+			v.Set(prefix+".endpoint", p.Endpoint)
+		}
+	}
+	return v.WriteConfigAs(path)
 }
 
 func SaveExample() error {
-    cfgDir, err := ConfigDir()
-    if err != nil {
-        return err
-    }
-    if err := os.MkdirAll(cfgDir, 0755); err != nil {
-        return err
-    }
-    examplePath := filepath.Join(cfgDir, "config.yaml")
-    if _, err := os.Stat(examplePath); err == nil {
-        return nil
-    }
-    content := `# CodeForge TUI Configuration
+	cfgDir, err := ConfigDir()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		return err
+	}
+	examplePath := filepath.Join(cfgDir, "config.yaml")
+	if _, err := os.Stat(examplePath); err == nil {
+		return nil
+	}
+	content := `# CodeForge TUI Configuration
 default_provider: grok
 theme: groknight
 
@@ -528,5 +528,5 @@ permissions:
   #     pattern: "go test *"
   #     effect: allow
 `
-    return os.WriteFile(examplePath, []byte(content), 0644)
+	return os.WriteFile(examplePath, []byte(content), 0644)
 }

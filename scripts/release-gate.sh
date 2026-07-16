@@ -24,6 +24,13 @@ else
   bad "check-version"
 fi
 
+# 1b. gofmt
+if bash scripts/gofmt-check.sh; then
+  pass "gofmt"
+else
+  bad "gofmt (run: make fmt)"
+fi
+
 # 2. Tests + build
 if GOSUMDB=off go test ./... >/tmp/cf-gate-test.log 2>&1; then
   pass "go test ./..."

@@ -40,9 +40,9 @@ type ChatModel struct {
 	streaming bool
 	mode      Mode
 
-	messages   []provider.Message
-	agentFull  string
-	streamFull string
+	messages     []provider.Message
+	agentFull    string
+	streamFull   string
 	spinnerFrame int
 
 	// typewriter for system messages
@@ -116,10 +116,10 @@ func (c *ChatModel) InputValue() string {
 	return ""
 }
 
-func (c *ChatModel) SetInput(s string) { c.ta.SetValue(s) }
-func (c *ChatModel) ClearInput()       { c.ta.Reset() }
-func (c *ChatModel) FocusInput()       { c.ta.Focus() }
-func (c *ChatModel) BlurInput()        { c.ta.Blur() }
+func (c *ChatModel) SetInput(s string)  { c.ta.SetValue(s) }
+func (c *ChatModel) ClearInput()        { c.ta.Reset() }
+func (c *ChatModel) FocusInput()        { c.ta.Focus() }
+func (c *ChatModel) BlurInput()         { c.ta.Blur() }
 func (c *ChatModel) InputFocused() bool { return c.ta.Focused() }
 
 func (c *ChatModel) AttachFile(rel, content string) {
@@ -463,7 +463,7 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				c.store.PageDown(msg.String() == "ctrl+d")
 			case "pgup", "ctrl+u":
 				c.store.PageUp(msg.String() == "ctrl+u")
-			// Phase 7: copy selected block (y body, Y meta) — handled at model if needed
+				// Phase 7: copy selected block (y body, Y meta) — handled at model if needed
 			}
 		}
 	}
@@ -545,7 +545,7 @@ func (c ChatModel) ViewScrollback() string {
 		if c.agentFull != "" {
 			label = "working"
 		}
-		sb.WriteString(lipgloss.NewStyle().Foreground(t.AccentRunning).Render(sp+" "+label))
+		sb.WriteString(lipgloss.NewStyle().Foreground(t.AccentRunning).Render(sp + " " + label))
 		if !c.store.Following() {
 			sb.WriteString(lipgloss.NewStyle().Foreground(t.TextMuted).Render("  ·  G follow"))
 		}

@@ -940,27 +940,32 @@ Strategy document: [`CODEFORGE_STRATEGY.md`](./CODEFORGE_STRATEGY.md).
 git clone https://github.com/NanoMindExplorer/codeforge.git
 cd codeforge
 go mod tidy
+make install-hooks      # gofmt pre-commit (core.hooksPath=scripts/githooks)
+
+# Format / check
+make fmt                # gofmt -w .
+make fmt-check          # fail if drift
 
 # Unit + smoke tests
 go test ./...
 
 # Build
-CGO_ENABLED=0 go build -ldflags="-s -w" -o codeforge ./cmd/codeforge/
+make build
 
 # Run against this repo
 export GEMINI_API_KEY=...
 ./codeforge --skip-wizard .
 ```
 
-CI (GitHub Actions): on push/PR runs `scripts/check-version.sh`, `go test ./...`, `go vet`, and a CGO-free build that must report the `VERSION` file. Tags matching `v*` run the [release workflow](./.github/workflows/release.yml) (tag must equal `VERSION`, then GoReleaser).
+CI (GitHub Actions): on push/PR runs `check-version`, **gofmt**, `go test`, `go vet`, and a CGO-free build that must report the `VERSION` file. Tags matching `v*` run the [release workflow](./.github/workflows/release.yml) (tag must equal `VERSION`, then GoReleaser).
 
 Local gates:
 
 ```bash
-make ci                 # check-version + vet + test + build
+make ci                 # check-version + fmt-check + vet + test + build
 make bump V=1.9.1       # bump VERSION + all string locations
 bash scripts/update-formula.sh v1.9.0   # after release: fill Formula sha256
-make release-gate       # automated public-ready checks
+make release-gate       # automated public-ready checks (includes gofmt)
 ```
 
 ---

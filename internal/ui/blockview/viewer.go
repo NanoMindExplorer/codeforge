@@ -107,7 +107,7 @@ func (m Model) View() string {
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(t.BorderActive).
-		Width(w - 2).
+		Width(w-2).
 		Height(vh).
 		Padding(0, 1).
 		Render(strings.Join(body, "\n"))

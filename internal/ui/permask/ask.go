@@ -17,9 +17,9 @@ type Model struct {
 	Reason    string
 	Dangerous bool
 	// Result
-	Done    bool
-	Allow   bool
-	Always  bool // remember for session/project
+	Done   bool
+	Allow  bool
+	Always bool // remember for session/project
 	// Waiting channel resolved by Confirm
 	// (caller uses external channel — this model is pure UI state)
 }

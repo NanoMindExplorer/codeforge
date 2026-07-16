@@ -15,8 +15,8 @@ import (
 
 // Event names.
 const (
-	EventPreToolUse  = "PreToolUse"
-	EventPostToolUse = "PostToolUse"
+	EventPreToolUse   = "PreToolUse"
+	EventPostToolUse  = "PostToolUse"
 	EventSessionStart = "SessionStart"
 )
 

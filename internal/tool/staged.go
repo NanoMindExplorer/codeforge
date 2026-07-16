@@ -18,9 +18,9 @@ import (
 type WriteMode int
 
 const (
-	ModePlan WriteMode = iota // BUILD: stage writes for review
-	ModeAct                   // YOLO: apply writes immediately
-	ModeDesign                // DESIGN: only plan.md may be written
+	ModePlan   WriteMode = iota // BUILD: stage writes for review
+	ModeAct                     // YOLO: apply writes immediately
+	ModeDesign                  // DESIGN: only plan.md may be written
 )
 
 // PendingPatch is a staged write awaiting user approval.

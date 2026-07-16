@@ -50,8 +50,8 @@ func (a *AskUserQuestion) Schema() map[string]any {
 		"properties": map[string]any{
 			"question": map[string]any{"type": "string"},
 			"options": map[string]any{
-				"type":  "array",
-				"items": map[string]any{"type": "string"},
+				"type":        "array",
+				"items":       map[string]any{"type": "string"},
 				"description": "Optional choices (2–6)",
 			},
 		},

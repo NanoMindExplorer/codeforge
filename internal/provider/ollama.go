@@ -81,9 +81,9 @@ type ollamaMsg struct {
 }
 
 type ollamaReq struct {
-	Model    string      `json:"model"`
-	Messages []ollamaMsg `json:"messages"`
-	Stream   bool        `json:"stream"`
+	Model    string         `json:"model"`
+	Messages []ollamaMsg    `json:"messages"`
+	Stream   bool           `json:"stream"`
 	Options  map[string]any `json:"options,omitempty"`
 }
 

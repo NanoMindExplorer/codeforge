@@ -88,11 +88,11 @@ func duckDuckGoSearch(q string, max int) (string, error) {
 		return "", fmt.Errorf("search HTTP %d", resp.StatusCode)
 	}
 	var data struct {
-		AbstractText   string `json:"AbstractText"`
-		AbstractURL    string `json:"AbstractURL"`
-		Heading        string `json:"Heading"`
-		Answer         string `json:"Answer"`
-		RelatedTopics  []struct {
+		AbstractText  string `json:"AbstractText"`
+		AbstractURL   string `json:"AbstractURL"`
+		Heading       string `json:"Heading"`
+		Answer        string `json:"Answer"`
+		RelatedTopics []struct {
 			Text     string `json:"Text"`
 			FirstURL string `json:"FirstURL"`
 			Topics   []struct {

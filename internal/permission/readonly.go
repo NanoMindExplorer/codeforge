@@ -4,30 +4,30 @@ import "strings"
 
 // Read-only tools auto-approve in every mode (unless deny/ask rule or hook).
 var readOnlyTools = map[string]bool{
-	"read_file":             true,
-	"list_dir":              true,
-	"list_directory":        true, // Grok alias
-	"grep_search":           true,
-	"grep":                  true, // Grok alias
-	"codebase_search":       true,
-	"diagnostics":           true,
-	"fetch_url":             true,
-	"web_fetch":             true, // Grok alias
-	"web_search":            true,
-	"write_plan":            true,
-	"exit_plan_mode":        true,
-	"enter_plan_mode":       true,
-	"research":              true,
-	"memory_search":         true,
-	"todo_write":            true, // Grok treats as soft state
-	"ask_user_question":     true,
-	"ask_user":              true, // Grok alias
-	"spawn_subagent":        true, // gated by subagent mode internally
-	"get_subagent_output":   true,
+	"read_file":                      true,
+	"list_dir":                       true,
+	"list_directory":                 true, // Grok alias
+	"grep_search":                    true,
+	"grep":                           true, // Grok alias
+	"codebase_search":                true,
+	"diagnostics":                    true,
+	"fetch_url":                      true,
+	"web_fetch":                      true, // Grok alias
+	"web_search":                     true,
+	"write_plan":                     true,
+	"exit_plan_mode":                 true,
+	"enter_plan_mode":                true,
+	"research":                       true,
+	"memory_search":                  true,
+	"todo_write":                     true, // Grok treats as soft state
+	"ask_user_question":              true,
+	"ask_user":                       true, // Grok alias
+	"spawn_subagent":                 true, // gated by subagent mode internally
+	"get_subagent_output":            true,
 	"get_command_or_subagent_output": true,
-	"glob_file_search":      true,
-	"glob":                  true,
-	"find_files":            true,
+	"glob_file_search":               true,
+	"glob":                           true,
+	"find_files":                     true,
 }
 
 // IsReadOnlyTool reports whether the tool is auto-approved by default.
@@ -46,11 +46,11 @@ var readOnlyShell = map[string]bool{
 	"head": true, "tail": true, "wc": true, "sort": true, "uniq": true,
 	"tr": true, "cut": true, "echo": true, "printf": true,
 	"grep": true, "rg": true, "find": true, // find can be destructive with -delete; checked separately
-	"git": true, // further checked for subcommand
-	"go": true,  // go test/build may write; only go list/env/version/fmt -n auto
-	"cargo": true,
+	"git":     true, // further checked for subcommand
+	"go":      true, // go test/build may write; only go list/env/version/fmt -n auto
+	"cargo":   true,
 	"kubectl": true,
-	"which": true, "type": true, "file": true, "stat": true, "tree": true,
+	"which":   true, "type": true, "file": true, "stat": true, "tree": true,
 	"diff": true, "cmp": true,
 	"jq": true, "yq": true,
 	"env": true, "printenv": true,

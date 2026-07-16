@@ -344,20 +344,30 @@ Out of scope for “1:1” claim (Could forever):
 
 ## Next action
 
-**Start Phase 1** (block scrollback engine) unless you want to adjust Must/Should tags first.
+**Phase 0–9 + G1–G10 + W1–W4 are shipped** on `main` (baseline **v1.9.0**).
 
-When implementing, each phase PR should:
-- Reference this file (`Phase N`)
-- Update a living checklist at the bottom of this doc
-- Keep headless agent green  
+Remaining work is **field dogfood** (fill scorecard / batches A–F) and optional **Coulds** (Grok.com OAuth, welcome polish). When ready to publish binaries:
+
+```bash
+make release-gate
+git tag v1.9.0 && git push origin v1.9.0
+```
+
+When implementing further changes, each PR should:
+- Keep this living checklist honest (or link to CHANGELOG)
+- Keep `make ci` / `make release-gate` green  
+- Run `make fmt` (or rely on the pre-commit hook)
 
 ---
 
 ## Living checklist
 
-### Phase 0
+> **Status sync:** last updated for **v1.9.0** (W1–W4).  
+> Detail for each phase is in the body of this doc; this section is the at-a-glance status only.
+
+### Phase 0 — Contract
 - [x] Roadmap written
-- [x] Checklist accepted (implementation started)
+- [x] Checklist accepted
 - [x] Non-goals documented in this file
 
 ### Phase 1 — Scrollback engine
@@ -369,7 +379,7 @@ When implementing, each phase PR should:
 - [x] Scrollbar thumb
 - [x] ChatModel wired to block store (streaming + agent tools)
 - [x] Unit tests (fold, follow, sticky, stream)
-- [ ] Dogfood screenshot vs Grok (optional)
+- [ ] Dogfood screenshot vs Grok (optional / field)
 
 ### Phase 2 — Input & focus fidelity
 - [x] Steal-Esc stack (review → palette → @ → command → slash → clear/rewind)
@@ -382,10 +392,61 @@ When implementing, each phase PR should:
 - [x] Prompt history on clear
 - [x] Tests (slashmenu, filepicker, smoke)
 
-### Phase 3–9
-- [ ] Not started
+### Phase 3 — Theme system
+- [x] GrokNight / GrokDay tokens + truecolor
+- [x] Quantize 256 / 16 / NO_COLOR
+- [x] `/theme` picker · auto dark/light
+- [x] Compact / minimal / no-motion / SSH tune
+
+### Phase 4 — Sessions
+- [x] v2 session layout under `~/.codeforge/sessions/`
+- [x] `/resume` `/new` `/fork` `/rewind` `/compact` `/context`
+- [x] `codeforge session migrate|export|import`
+- [x] Checkpoints / undo for writes
+
+### Phase 5 — Design plan
+- [x] BUILD / DESIGN / YOLO session modes (Shift+Tab)
+- [x] `/plan` · `write_plan` · plan review overlay
+- [x] DESIGN write-gate (plan.md only)
+
+### Phase 6 — Permissions & hooks
+- [x] Permission engine (allow/deny/ask + modes)
+- [x] Shell ask modal · dangerous-command rules
+- [x] PreToolUse / PostToolUse hooks
+- [x] OS sandbox profiles (soft / bwrap / Landlock / Seatbelt best-effort)
+
+### Phase 7 — Product surface
+- [x] `/todos` · `/tasks` · background shell
+- [x] Block viewer · copy · inline diff
+- [x] `/settings` · memory · GitHub slash surface
+
+### Phase 8 — ACP / headless
+- [x] `codeforge agent` one-shot + `--json`
+- [x] `agent stdio` / `agent serve` ACP JSON-RPC
+- [x] `x.ai/*` extensions · skills on ACP path
+
+### Phase 9 — Polish & dogfood
+- [x] `docs/DOGFOOD.md` + terminal matrix
+- [x] Session migration docs
+- [x] v1.0.0 Grok-compatible claim foundations
+- [ ] Field dogfood 2-week green (ongoing — see scorecard)
+
+### G1–G10 — Grok 4.5 tools & model
+- [x] Grok 4.5 provider (xAI OpenAI-compatible)
+- [x] Grok tool names / aliases · spawn_subagent
+- [x] Skills (SKILL.md) · personas · background subagents
+- [x] Native reasoning streams · pager.toml matrix
+- [x] Subagent persist · permission parity audit (v1.8.1)
+
+### W1–W4 — Release readiness
+- [x] **W1** Release automation + ProviderError + dogfood templates (v1.8.2)
+- [x] **W2** Onboarding `/setup` + reasoning fallback + headless codes (v1.8.3)
+- [x] **W3** Install matrix · Termux package · release-notes (v1.8.4)
+- [x] **W4** `make release-gate` · `/doctor` · scorecard · Batch F (v1.9.0)
+- [ ] Tag **v1.9.0** + GitHub Release assets (when publishing)
+- [ ] Human dogfood H1–H5 filled in [RELEASE_GATE.md](./RELEASE_GATE.md)
 
 ---
 
 *Maintainer: NanoMind · CodeForge · 2026*  
-*Companion to product code at v0.8.0+*
+*Companion to product code at **v1.9.0** (phases 0–9 + G1–G10 + W1–W4). Older “v0.8.0+” wording is historical only.*

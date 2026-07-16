@@ -595,4 +595,3 @@ func truncateACP(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
-

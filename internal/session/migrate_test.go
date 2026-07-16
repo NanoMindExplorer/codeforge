@@ -18,13 +18,13 @@ func TestMigrateLegacy(t *testing.T) {
 
 	// write legacy flat file manually
 	legacy := map[string]any{
-		"id":        "20260101-120000",
-		"slug":      "hello",
-		"provider":  "gemini",
-		"model":     "flash",
-		"workdir":   "/tmp/proj",
-		"messages":  []provider.Message{{Role: provider.RoleUser, Content: "hello migrate"}},
-		"preview":   "hello migrate",
+		"id":         "20260101-120000",
+		"slug":       "hello",
+		"provider":   "gemini",
+		"model":      "flash",
+		"workdir":    "/tmp/proj",
+		"messages":   []provider.Message{{Role: provider.RoleUser, Content: "hello migrate"}},
+		"preview":    "hello migrate",
 		"total_cost": 0.01,
 	}
 	data, _ := json.MarshalIndent(legacy, "", "  ")

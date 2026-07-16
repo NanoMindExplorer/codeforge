@@ -31,8 +31,8 @@ type StatusBarModel struct {
 	BudgetStop bool
 	ThemeName  string
 	// Phase 7
-	TodoBadge  string // e.g. "2/5"
-	BgTasks    int    // running background tasks
+	TodoBadge string // e.g. "2/5"
+	BgTasks   int    // running background tasks
 	// Phase G4
 	Sandbox string // e.g. "SBX:ws" or empty
 	// W2 O3: true when no valid provider key — footer shows /setup hint

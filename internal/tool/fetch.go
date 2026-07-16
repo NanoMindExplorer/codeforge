@@ -31,7 +31,7 @@ func (u *URLFetch) Schema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"url": map[string]any{"type": "string", "description": "https URL to fetch"},
+			"url":       map[string]any{"type": "string", "description": "https URL to fetch"},
 			"max_bytes": map[string]any{"type": "integer", "description": "Max body size (default 200000)"},
 		},
 		"required": []string{"url"},

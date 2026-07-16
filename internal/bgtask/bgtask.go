@@ -25,14 +25,14 @@ const (
 
 // Task is one background command.
 type Task struct {
-	ID        string
-	Command   string
-	WorkDir   string
-	Status    Status
-	Output    string
-	Started   time.Time
-	Ended     time.Time
-	cancel    context.CancelFunc
+	ID      string
+	Command string
+	WorkDir string
+	Status  Status
+	Output  string
+	Started time.Time
+	Ended   time.Time
+	cancel  context.CancelFunc
 }
 
 // Manager holds tasks for a session.

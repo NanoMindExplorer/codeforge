@@ -11,12 +11,12 @@ import (
 	"github.com/codeforge/tui/internal/config"
 	"github.com/codeforge/tui/internal/git"
 	"github.com/codeforge/tui/internal/index"
+	"github.com/codeforge/tui/internal/pager"
+	"github.com/codeforge/tui/internal/personas"
 	"github.com/codeforge/tui/internal/plugin"
 	"github.com/codeforge/tui/internal/provider"
 	"github.com/codeforge/tui/internal/research"
 	"github.com/codeforge/tui/internal/rules"
-	"github.com/codeforge/tui/internal/pager"
-	"github.com/codeforge/tui/internal/personas"
 	"github.com/codeforge/tui/internal/sandbox"
 	"github.com/codeforge/tui/internal/skills"
 	"github.com/codeforge/tui/internal/telemetry"
@@ -26,14 +26,14 @@ import (
 
 // Runtime is a fully wired CodeForge environment.
 type Runtime struct {
-	Cfg      *config.Config
-	WorkDir  string
-	ProvReg  *provider.Registry
-	ToolReg  *tool.Registry
-	GitRepo  *git.Repo
-	Rules    *rules.Bundle
-	Quiet    bool // suppress stderr banners
-	Tele     *telemetry.Client
+	Cfg     *config.Config
+	WorkDir string
+	ProvReg *provider.Registry
+	ToolReg *tool.Registry
+	GitRepo *git.Repo
+	Rules   *rules.Bundle
+	Quiet   bool // suppress stderr banners
+	Tele    *telemetry.Client
 }
 
 // Options controls bootstrap behaviour.
@@ -131,10 +131,10 @@ func Bootstrap(opt Options) (*Runtime, error) {
 	if !eng.IsOff() {
 		logf("✓ %s\n", eng.Summary())
 		sandbox.LogEvent("activate", map[string]any{
-			"profile":  string(eng.Profile),
-			"backend":  string(eng.Backend),
-			"process":  string(eng.ProcessBackend),
-			"workdir":  workdir,
+			"profile": string(eng.Profile),
+			"backend": string(eng.Backend),
+			"process": string(eng.ProcessBackend),
+			"workdir": workdir,
 		})
 	}
 

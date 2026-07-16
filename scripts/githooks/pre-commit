@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# CodeForge pre-commit: gofmt staged Go files.
+# Install: make install-hooks  (sets core.hooksPath = scripts/githooks)
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$ROOT" ]]; then
+  exit 0
+fi
+cd "$ROOT"
+
+staged="$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)"
+if [[ -z "$staged" ]]; then
+  exit 0
+fi
+
+# Format staged files and re-add
+echo "$staged" | while IFS= read -r f; do
+  [[ -z "$f" || ! -f "$f" ]] && continue
+  gofmt -w "$f"
+  git add -- "$f"
+done
+
+# Fail if anything staged still fails gofmt -l
+dirty=""
+while IFS= read -r f; do
+  [[ -z "$f" || ! -f "$f" ]] && continue
+  if [[ -n "$(gofmt -l "$f" 2>/dev/null || true)" ]]; then
+    dirty="${dirty}${f}"$'\n'
+  fi
+done <<< "$staged"
+
+if [[ -n "$dirty" ]]; then
+  echo "pre-commit: gofmt still dirty:"
+  echo "$dirty"
+  exit 1
+fi
+
+exit 0

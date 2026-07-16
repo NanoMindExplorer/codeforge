@@ -43,16 +43,16 @@ const (
 // --- initialize ---
 
 type InitializeParams struct {
-	ProtocolVersion    int                `json:"protocolVersion"`
-	ClientCapabilities map[string]any     `json:"clientCapabilities,omitempty"`
+	ProtocolVersion    int                 `json:"protocolVersion"`
+	ClientCapabilities map[string]any      `json:"clientCapabilities,omitempty"`
 	ClientInfo         *ImplementationInfo `json:"clientInfo,omitempty"`
 }
 
 type InitializeResult struct {
-	ProtocolVersion   int                 `json:"protocolVersion"`
-	AgentCapabilities AgentCapabilities   `json:"agentCapabilities"`
-	AgentInfo         ImplementationInfo  `json:"agentInfo"`
-	AuthMethods       []any               `json:"authMethods"`
+	ProtocolVersion   int                `json:"protocolVersion"`
+	AgentCapabilities AgentCapabilities  `json:"agentCapabilities"`
+	AgentInfo         ImplementationInfo `json:"agentInfo"`
+	AuthMethods       []any              `json:"authMethods"`
 }
 
 type ImplementationInfo struct {

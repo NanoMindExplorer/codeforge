@@ -74,7 +74,7 @@ func SetGlobal(r *Registry) {
 
 // Options for discovery.
 type Options struct {
-	WorkDir  string
+	WorkDir string
 	// ExtraPaths additional skill roots from config
 	ExtraPaths []string
 	// Ignore path prefixes to skip

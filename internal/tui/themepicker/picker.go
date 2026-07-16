@@ -11,10 +11,10 @@ import (
 
 // Model is the interactive theme list with live preview.
 type Model struct {
-	Active     bool
-	Options    []theme.ThemeOption
-	Cursor     int
-	Width      int
+	Active  bool
+	Options []theme.ThemeOption
+	Cursor  int
+	Width   int
 	// SavedName is the theme active when the picker opened (for Esc revert).
 	SavedName string
 	WasAuto   bool

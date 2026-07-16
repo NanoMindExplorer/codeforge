@@ -17,9 +17,9 @@ const (
 
 // Rule matches a tool invocation.
 type Rule struct {
-	Tool    string `json:"tool" yaml:"tool" mapstructure:"tool"`       // name or class: run_command, write_file, bash, read, edit, *
+	Tool    string `json:"tool" yaml:"tool" mapstructure:"tool"`          // name or class: run_command, write_file, bash, read, edit, *
 	Pattern string `json:"pattern" yaml:"pattern" mapstructure:"pattern"` // glob against command or path
-	Effect  Effect `json:"effect" yaml:"effect" mapstructure:"effect"` // deny | ask | allow
+	Effect  Effect `json:"effect" yaml:"effect" mapstructure:"effect"`    // deny | ask | allow
 }
 
 // Match reports whether this rule applies to tool+input.

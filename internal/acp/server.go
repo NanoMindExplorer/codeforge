@@ -21,13 +21,13 @@ import (
 
 // Options configure the ACP agent server.
 type Options struct {
-	Version        string
-	WorkDir        string // default cwd when session omits
-	Model          string
-	AlwaysApprove  bool
-	DontAsk        bool
-	Plan           bool
-	MaxIter        int
+	Version       string
+	WorkDir       string // default cwd when session omits
+	Model         string
+	AlwaysApprove bool
+	DontAsk       bool
+	Plan          bool
+	MaxIter       int
 	// Quiet suppresses stderr banners during bootstrap
 	Quiet bool
 	// Runner is optional override for tests (nil = real agent)
@@ -46,9 +46,9 @@ type Transport interface {
 
 // Server is the ACP agent side.
 type Server struct {
-	opt    Options
-	mu     sync.Mutex
-	sess   map[string]*acpSession
+	opt  Options
+	mu   sync.Mutex
+	sess map[string]*acpSession
 	// active prompt cancel
 	cancels map[string]context.CancelFunc
 	tx      Transport
