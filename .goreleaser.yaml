@@ -67,6 +67,9 @@ changelog:
       - "^docs:"
       - "^test:"
 
+# Generate formula into dist/ only. Do not push to a tap unless it exists
+# (homebrew-tap is optional). In-repo Formula/ is updated post-release via
+# scripts/update-formula.sh.
 brews:
   - repository:
       owner: NanoMindExplorer
@@ -79,7 +82,7 @@ brews:
       bin.install "codeforge"
     test: |
       assert_match version.to_s, shell_output("#{bin}/codeforge version")
-    skip_upload: auto
+    skip_upload: true
 
 release:
   github:
