@@ -113,7 +113,7 @@ func (s StatusBarModel) ViewFooter() string {
 // ViewBottom keeps API used by model (hints row).
 func (s StatusBarModel) ViewBottom() string {
 	t := theme.Current()
-	hints := "tab focus  @ file  / commands  ctrl+k palette  shift+tab plan/act  ctrl+b panels  ? help"
+	hints := "tab focus  @ file  / commands  ctrl+k palette  shift+tab build/design/yolo  ctrl+b panels  ? help"
 	if theme.CompactMode() {
 		hints = "tab · @ · / · ⌘k · S-tab · ?"
 	}

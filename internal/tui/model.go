@@ -31,6 +31,7 @@ import (
 	"github.com/codeforge/tui/internal/ui/filepicker"
 	"github.com/codeforge/tui/internal/ui/markdown"
 	"github.com/codeforge/tui/internal/ui/palette"
+	"github.com/codeforge/tui/internal/ui/planreview"
 	"github.com/codeforge/tui/internal/ui/review"
 )
 
@@ -50,9 +51,10 @@ type Model struct {
 	// focusPrompt true = Grok "prompt focused"; false = scrollback focused
 	focusPrompt bool
 	mode        Mode
-	agentMode   tool.WriteMode // Plan default
-	showPanels  bool           // side drawers Diff+Files
-	activePane  Pane           // when panels on
+	// sessionMode: BUILD (staged) → DESIGN (plan-only) → YOLO (always-approve)
+	sessionMode tool.SessionMode
+	showPanels  bool // side drawers Diff+Files
+	activePane  Pane // when panels on
 
 	chat    ChatModel
 	diff    DiffModel
@@ -62,6 +64,7 @@ type Model struct {
 	palette palette.Model
 	picker  filepicker.Model
 	review  review.Model
+	planUI  planreview.Model
 	slash    slashmenu.Model
 	themes   themepicker.Model
 	sessions sessionpicker.Model
@@ -115,6 +118,7 @@ const (
 	ModeThemePick
 	ModeSessionPick
 	ModeRewindPick
+	ModePlanReview
 )
 
 func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry, repo *git.Repo, workdir string) Model {
@@ -148,7 +152,7 @@ func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry,
 		keys:        keymap.Default(),
 		focusPrompt: true,
 		mode:        ModeInsert,
-		agentMode:   tool.ModePlan,
+		sessionMode: tool.SessionBuild,
 		showPanels:  false,
 		activePane:  PaneChat,
 		startTime:   time.Now(),
@@ -160,6 +164,7 @@ func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry,
 		palette:     palette.New(),
 		picker:      filepicker.New(workdir),
 		review:      review.New(),
+		planUI:      planreview.New(),
 		slash:       slashmenu.New(),
 		themes:      themepicker.New(),
 		sessions:    sessionpicker.New(),
@@ -168,10 +173,8 @@ func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry,
 		ghClient:    ghc,
 		vimMode:     vim,
 	}
-	// Ensure staged writer is in Plan mode
-	if sw := toolReg.GetStagedWriter(); sw != nil {
-		sw.SetMode(tool.ModePlan)
-	}
+	// Wire plan.md path + BUILD write mode (staged)
+	m.syncWriteMode()
 	if rb != nil && len(rb.Paths) > 0 {
 		m.chat.AddSystemMessage(rb.Summary())
 	}
@@ -275,9 +278,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// ── Steal-Esc stack (Grok order) ─────────────
-		// Review → Theme → Resume → Rewind → Palette → File → Command → Slash → clear/rewind
+		// Review → PlanReview → Theme → Resume → Rewind → Palette → File → Command → Slash
 		if m.mode == ModeReview {
 			return m.updateReview(msg)
+		}
+		if m.mode == ModePlanReview {
+			return m.updatePlanReview(msg)
 		}
 		if m.mode == ModeThemePick {
 			return m.updateThemePicker(msg)
@@ -845,7 +851,8 @@ func isImmediateSlash(cmd string) bool {
 	case "/help", "/about", "/cost", "/budget", "/rules", "/index",
 		"/status", "/clear", "/quit", "/theme", "/compact-mode", "/vim-mode",
 		"/sessions", "/resume", "/new", "/fork", "/rewind", "/compact",
-		"/context", "/session-info", "/undo", "/push", "/pull":
+		"/context", "/session-info", "/mode", "/plan", "/view-plan",
+		"/undo", "/push", "/pull":
 		return true
 	default:
 		return false
@@ -961,23 +968,164 @@ func buildPaletteItems(m *Model) []palette.Item {
 	return items
 }
 
-func (m *Model) toggleAgentMode() {
-	sw := m.toolReg.GetStagedWriter()
-	if m.agentMode == tool.ModePlan {
-		m.agentMode = tool.ModeAct
-		if sw != nil {
-			sw.SetMode(tool.ModeAct)
-		}
-		m.toast = components.NewToast("Mode: ACT — writes apply immediately", "warning", 3*time.Second)
-		m.chat.AddSystemMessage("⚡ Mode ACT: write_file menulis langsung ke disk.")
-	} else {
-		m.agentMode = tool.ModePlan
-		if sw != nil {
-			sw.SetMode(tool.ModePlan)
-		}
-		m.toast = components.NewToast("Mode: PLAN — writes require review", "info", 3*time.Second)
-		m.chat.AddSystemMessage("🛡 Mode PLAN: write_file di-stage untuk review.")
+// cycleSessionMode: BUILD → DESIGN → YOLO → BUILD (Shift+Tab / Grok parity).
+func (m *Model) cycleSessionMode() {
+	m.setSessionMode(m.sessionMode.Next())
+}
+
+func (m *Model) setSessionMode(mode tool.SessionMode) {
+	m.sessionMode = mode
+	m.syncWriteMode()
+	label := mode.Label()
+	switch mode {
+	case tool.SessionDesign:
+		m.toast = components.NewToast("Mode: DESIGN — plan only", "info", 3*time.Second)
+		m.chat.AddSystemMessage("◈ DESIGN: explore + write_plan only. No project file edits until you approve.\n  Finish with exit_plan_mode · or /view-plan")
+	case tool.SessionYolo:
+		m.toast = components.NewToast("Mode: YOLO — writes immediate", "warning", 3*time.Second)
+		m.chat.AddSystemMessage("⚡ YOLO: write_file applies to disk immediately (always-approve).")
+	default:
+		m.toast = components.NewToast("Mode: BUILD — staged writes", "info", 3*time.Second)
+		m.chat.AddSystemMessage("🛡 BUILD: write_file is staged for review before apply.")
 	}
+	_ = label
+}
+
+// syncWriteMode pushes session mode + plan path into the tool registry.
+func (m *Model) syncWriteMode() {
+	sw := m.toolReg.GetStagedWriter()
+	if sw == nil {
+		return
+	}
+	sw.SetMode(m.sessionMode.WriteMode())
+	if m.session != nil {
+		if p, err := m.session.PlanPath(); err == nil {
+			sw.SetPlanPath(p)
+		}
+	}
+}
+
+// legacy alias used by older call sites
+func (m *Model) toggleAgentMode() { m.cycleSessionMode() }
+
+func (m *Model) openPlanReview(summary string) {
+	content := ""
+	if m.session != nil {
+		content, _ = m.session.ReadPlan()
+	}
+	m.planUI.Open(content, summary)
+	m.mode = ModePlanReview
+	m.focusPrompt = false
+	m.chat.BlurInput()
+	m.slash.Close()
+}
+
+func (m Model) updatePlanReview(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		m.planUI.Quit()
+		return m.finishPlanReview()
+	case "a":
+		if m.planUI.Focus == planreview.FocusPrompt {
+			// approve with notes
+			m.planUI.Approve()
+			return m.finishPlanReview()
+		}
+		m.planUI.Approve()
+		return m.finishPlanReview()
+	case "s":
+		m.planUI.RequestChanges()
+		if m.planUI.Done {
+			return m.finishPlanReview()
+		}
+		return m, nil
+	case "tab":
+		m.planUI.ToggleFocus()
+		return m, nil
+	case "esc":
+		if m.planUI.Focus == planreview.FocusPrompt {
+			m.planUI.Focus = planreview.FocusPreview
+			return m, nil
+		}
+		// Esc on preview does nothing (must q to quit) — match Grok
+		return m, nil
+	case "up", "k":
+		if m.planUI.Focus == planreview.FocusPreview {
+			m.planUI.Scroll(-1)
+		}
+		return m, nil
+	case "down", "j":
+		if m.planUI.Focus == planreview.FocusPreview {
+			m.planUI.Scroll(1)
+		}
+		return m, nil
+	case "pgup":
+		m.planUI.Page(-1)
+		return m, nil
+	case "pgdown":
+		m.planUI.Page(1)
+		return m, nil
+	case "enter":
+		if m.planUI.Focus == planreview.FocusPrompt {
+			m.planUI.SubmitChanges()
+			return m.finishPlanReview()
+		}
+		return m, nil
+	case "backspace":
+		if m.planUI.Focus == planreview.FocusPrompt {
+			m.planUI.BackspaceFeedback()
+		}
+		return m, nil
+	default:
+		if m.planUI.Focus == planreview.FocusPrompt && msg.Type == tea.KeyRunes {
+			m.planUI.TypeFeedback(string(msg.Runes))
+		}
+	}
+	return m, nil
+}
+
+func (m Model) finishPlanReview() (tea.Model, tea.Cmd) {
+	action := m.planUI.Action
+	notes := m.planUI.Notes
+	m.planUI.Close()
+	m.mode = ModeInsert
+	m.focusPrompt = true
+	m.chat.FocusInput()
+
+	switch action {
+	case planreview.ActionApprove:
+		// Leave DESIGN → BUILD for implementation
+		m.setSessionMode(tool.SessionBuild)
+		task := "The design plan was APPROVED. Implement it now.\n"
+		if body, err := m.session.ReadPlan(); err == nil && body != "" {
+			task += "\n--- plan.md ---\n" + body + "\n--- end plan ---\n"
+		}
+		if notes != "" {
+			task += "\nUser comments with approval:\n" + notes + "\n"
+		}
+		task += "\nUse search_replace/apply_patch. Prefer BUILD staged writes."
+		m.chat.AddSystemMessage("✓ Plan approved → BUILD mode. Starting implementation…")
+		m.toast = components.NewToast("Plan approved", "success", 3*time.Second)
+		return m, m.chat.SubmitAgent(task)
+
+	case planreview.ActionChanges:
+		// Stay in DESIGN for revision
+		if m.sessionMode != tool.SessionDesign {
+			m.setSessionMode(tool.SessionDesign)
+		}
+		task := "The user requested CHANGES to the design plan.\nFeedback:\n" + notes +
+			"\n\nRevise the plan with write_plan, then call exit_plan_mode again. Do not implement yet."
+		m.chat.AddSystemMessage("↩ Changes requested — still in DESIGN")
+		m.toast = components.NewToast("Revise plan", "info", 3*time.Second)
+		return m, m.chat.SubmitAgent(task)
+
+	case planreview.ActionQuit:
+		m.setSessionMode(tool.SessionBuild)
+		m.chat.AddSystemMessage("Plan abandoned → BUILD mode")
+		m.toast = components.NewToast("Plan quit", "warning", 2*time.Second)
+		return m, nil
+	}
+	return m, nil
 }
 
 func (m *Model) handleAgentEvent(ev agent.Event) []tea.Cmd {
@@ -987,14 +1135,33 @@ func (m *Model) handleAgentEvent(ev agent.Event) []tea.Cmd {
 	if c != nil {
 		cmds = append(cmds, c)
 	}
+	// Design-plan tool signals (enter/exit/write)
+	if sig := tool.ConsumePlanSignal(); sig != nil {
+		switch sig.Kind {
+		case "enter_plan_mode":
+			if m.sessionMode != tool.SessionDesign {
+				m.setSessionMode(tool.SessionDesign)
+			}
+			m.chat.AddSystemMessage("◈ Agent requested DESIGN: " + sig.Message)
+		case "exit_plan_mode":
+			m.openPlanReview(sig.Message)
+		case "plan_written":
+			m.chat.AddSystemMessage("Plan updated → " + sig.Message)
+		}
+	}
+
 	if ev.Kind == agent.EventDone {
 		m.accTokens(ev.InputTokens, ev.OutputTokens)
-		// Plan mode: open review if pending
+		// If agent called exit_plan_mode mid-turn, approval already open
+		if m.mode == ModePlanReview {
+			cmds = append(cmds, m.persistSessionCmd())
+			return cmds
+		}
+		// BUILD mode: open patch review if pending
 		if sw := m.toolReg.GetStagedWriter(); sw != nil && sw.HasPending() {
 			patches := sw.Pending()
 			m.review.Open(patches)
 			m.mode = ModeReview
-			// show combined diff
 			var combined string
 			for _, p := range patches {
 				combined += p.Diff + "\n"
@@ -1008,7 +1175,7 @@ func (m *Model) handleAgentEvent(ev agent.Event) []tea.Cmd {
 		cmds = append(cmds, m.persistSessionCmd())
 	}
 	if ev.Kind == agent.EventToolResult && ev.ToolDiff != "" {
-		nd, dc := m.diff.Update(DiffUpdateMsg{Content: ev.ToolDiff, Pending: m.agentMode == tool.ModePlan})
+		nd, dc := m.diff.Update(DiffUpdateMsg{Content: ev.ToolDiff, Pending: m.sessionMode == tool.SessionBuild})
 		m.diff = nd.(DiffModel)
 		if dc != nil {
 			cmds = append(cmds, dc)
@@ -1020,8 +1187,8 @@ func (m *Model) handleAgentEvent(ev agent.Event) []tea.Cmd {
 				// last token often path
 				path := parts[len(parts)-1]
 				m.context.MarkTouched(path)
-				// Act mode: checkpoint immediately
-				if m.agentMode == tool.ModeAct {
+				// YOLO mode: checkpoint immediately
+				if m.sessionMode == tool.SessionYolo {
 					abs := path
 					if !filepath.IsAbs(abs) {
 						abs = filepath.Join(m.workdir, path)
@@ -1172,11 +1339,7 @@ func (m *Model) syncStatus() {
 			m.status.BudgetStop = m.totalCost >= m.cfg.Budget.MaxCostUSD
 		}
 	}
-	if m.agentMode == tool.ModePlan {
-		m.status.AgentMode = "PLAN"
-	} else {
-		m.status.AgentMode = "ACT"
-	}
+	m.status.AgentMode = m.sessionMode.Label()
 	if m.gitRepo != nil {
 		if branch, err := m.gitRepo.Branch(); err == nil {
 			m.status.Branch = branch
@@ -1229,6 +1392,15 @@ func (m Model) View() string {
 	if m.mode == ModeReview {
 		return lipgloss.JoinVertical(lipgloss.Left,
 			m.review.View(),
+			m.status.ViewFooter(),
+		)
+	}
+	// ── Design plan approval fullscreen ──────────────
+	if m.mode == ModePlanReview {
+		m.planUI.Width = m.width
+		m.planUI.Height = m.height - 1
+		return lipgloss.JoinVertical(lipgloss.Left,
+			m.planUI.View(),
 			m.status.ViewFooter(),
 		)
 	}
@@ -1472,6 +1644,7 @@ func (m *Model) applySession(s *session.Session) {
 			_ = cur.SetModel(s.Model)
 		}
 	}
+	m.syncWriteMode() // rebind plan.md path for this session
 	m.chat.AddSystemMessage(fmt.Sprintf("✓ Resumed session %s", s.ID))
 	m.toast = components.NewToast("Session resumed", "success", 2*time.Second)
 }
@@ -1511,6 +1684,7 @@ func (m *Model) startNewSession() {
 	m.totalCost = 0
 	m.totalTokens = 0
 	m.diff = NewDiffModel()
+	m.setSessionMode(tool.SessionBuild)
 	m.chat.AddSystemMessage("New session " + m.session.ID)
 	m.toast = components.NewToast("New session", "info", 2*time.Second)
 }
@@ -1664,25 +1838,33 @@ func (m *Model) executeSlashCommand(input string) tea.Cmd {
 
 	case "mode":
 		if len(args) == 0 {
-			name := "PLAN"
-			if m.agentMode == tool.ModeAct {
-				name = "ACT"
-			}
-			m.chat.AddSystemMessage(fmt.Sprintf("Agent write mode: %s\n  /mode plan  — stage writes for review (default)\n  /mode act   — write immediately\n  Shift+P     — toggle", name))
+			m.chat.AddSystemMessage(fmt.Sprintf(
+				"Session mode: %s\n  %s\n\n  /mode build   — staged writes (default)\n  /mode design  — plan.md only (DESIGN)\n  /mode yolo    — always-approve writes\n  Shift+Tab     — cycle BUILD → DESIGN → YOLO\n  /plan         — enter DESIGN + optional task",
+				m.sessionMode.Label(), m.sessionMode.Description(),
+			))
 		} else {
-			switch strings.ToLower(args[0]) {
-			case "plan":
-				if m.agentMode != tool.ModePlan {
-					m.toggleAgentMode()
-				}
-			case "act":
-				if m.agentMode != tool.ModeAct {
-					m.toggleAgentMode()
-				}
-			default:
-				m.chat.AddSystemMessage("Gunakan: /mode plan | act")
+			if sm, ok := tool.ParseSessionMode(args[0]); ok {
+				m.setSessionMode(sm)
+			} else {
+				// legacy aliases handled by ParseSessionMode; leftover:
+				m.chat.AddSystemMessage("Use: /mode build | design | yolo  (aliases: plan→design, act→yolo)")
 			}
 		}
+
+	case "plan":
+		// Enter DESIGN; optional arg starts an agent plan turn
+		m.setSessionMode(tool.SessionDesign)
+		if argStr != "" {
+			task := "Design a plan (DESIGN mode) for: " + argStr +
+				"\n\nExplore the codebase with read/search tools. Write the plan via write_plan. " +
+				"Then call exit_plan_mode. Do NOT edit project source files."
+			return m.chat.SubmitAgent(task)
+		}
+		m.chat.AddSystemMessage("◈ DESIGN mode on. Describe the task and press Enter, or:\n  /plan <description>  — start planning turn\n  /view-plan            — open current plan")
+
+	case "view-plan", "show-plan", "plan-view":
+		m.openPlanReview("View plan")
+		// viewing only — if user approves from here, still OK
 
 	case "sessions", "dashboard":
 		// list text view (picker is /resume)
@@ -2643,6 +2825,7 @@ var slashCommands = []string{
 	"/provider", "/model", "/mode", "/cost", "/budget", "/rules", "/index",
 	"/theme", "/compact-mode", "/vim-mode",
 	"/resume", "/new", "/fork", "/rewind", "/compact", "/context", "/session-info",
+	"/mode", "/plan", "/view-plan",
 	"/sessions", "/undo", "/clear", "/help", "/about", "/quit",
 }
 
@@ -2656,39 +2839,37 @@ func autocomplete(input string) string {
 }
 
 func helpText() string {
-	return `CodeForge · Grok-parity Phase 4  ·  v0.9.3
+	return `CodeForge · Grok-parity Phase 5  ·  v0.9.4
 
 FOCUS
   Tab            Prompt ↔ scrollback
   Esc            Close menu / focus scrollback
   2× Esc (800ms) Clear prompt · or open /rewind picker
-  Ctrl+C         Clear draft → cancel turn → quit
+  Shift+Tab      BUILD → DESIGN → YOLO
+
+SESSION MODES
+  BUILD          Staged writes (review before apply)
+  DESIGN         Plan only — write_plan / exit_plan_mode
+  YOLO           Always-approve immediate writes
+  /plan [task]   Enter DESIGN (+ start planning)
+  /view-plan     Open plan approval UI
+  a / s / q      Approve · request changes · quit plan
 
 SESSIONS
-  /resume        Full-screen session picker
-  /new           New session id (vs /clear = wipe chat)
-  /fork [note]   Branch conversation
-  /rewind        Restore files + truncate chat
-  /compact       Compress history (auto at ~85% context)
-  /context       Token breakdown
-  /session-info  Current session metadata
+  /resume /new /fork /rewind /compact /context
 
 THEME
-  /theme         Live-preview picker
-  /compact-mode  Tighter UI padding
-  --minimal      Terminal-native 16 colors
+  /theme · /compact-mode · --minimal
 `
 }
 
 func aboutText() string {
-	return `CodeForge TUI v0.9.3
+	return `CodeForge TUI v0.9.4
 Created by NanoMind — 2026 — Apache 2.0
 
-Phase 1: block scrollback
-Phase 2: input fidelity
-Phase 3: themes + chrome
-Phase 4: sessions /resume /fork /rewind /compact
-  storage: ~/.codeforge/sessions/<cwd>/<id>/
+Phase 1–4: blocks, input, themes, sessions
+Phase 5: DESIGN plan mode + approval (a/s/q)
+  BUILD · DESIGN · YOLO  (Shift+Tab)
 See docs/GROK_PARITY_ROADMAP.md
 `
 }

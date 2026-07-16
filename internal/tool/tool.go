@@ -436,11 +436,15 @@ func NewRegistry(workDir string) *Registry {
     r := &Registry{tools: make(map[string]Tool)}
     staged := NewStagedWriter(workDir)
     r.Register(&FileReader{WorkDir: workDir})
-    // StagedWriter gates writes in Plan mode (default); Act mode writes immediately.
+    // StagedWriter gates writes: BUILD=stage, YOLO=immediate, DESIGN=plan.md only
     r.Register(staged)
     // Surgical edits (prefer over full-file write)
     r.Register(&SearchReplace{WorkDir: workDir, Staged: staged})
     r.Register(&ApplyPatch{WorkDir: workDir, Staged: staged})
+    // Design plan tools (Phase 5)
+    r.Register(&WritePlan{Staged: staged})
+    r.Register(&ExitPlanMode{Staged: staged})
+    r.Register(&EnterPlanMode{Staged: staged})
     r.Register(&DirLister{WorkDir: workDir})
     r.Register(&GrepSearch{WorkDir: workDir})
     r.Register(&CodebaseSearch{WorkDir: workDir})

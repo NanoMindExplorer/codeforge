@@ -12,12 +12,14 @@ import (
 	"github.com/codeforge/tui/internal/diff"
 )
 
-// WriteMode controls whether writes apply immediately (Act) or stage (Plan).
+// WriteMode controls whether writes stage (Plan/BUILD), apply immediately
+// (Act/YOLO), or are restricted to the design plan file (Design).
 type WriteMode int
 
 const (
-	ModePlan WriteMode = iota // default: stage writes for review
-	ModeAct                   // apply writes immediately
+	ModePlan WriteMode = iota // BUILD: stage writes for review
+	ModeAct                   // YOLO: apply writes immediately
+	ModeDesign                // DESIGN: only plan.md may be written
 )
 
 // PendingPatch is a staged write awaiting user approval.
@@ -30,15 +32,16 @@ type PendingPatch struct {
 	Accepted   bool // for multi-file review UI
 }
 
-// StagedWriter wraps FileWriter with Plan/Act gating.
+// StagedWriter wraps FileWriter with Plan/Act/Design gating.
 type StagedWriter struct {
-	inner   *FileWriter
-	mu      sync.Mutex
-	mode    WriteMode
-	pending []PendingPatch
+	inner    *FileWriter
+	mu       sync.Mutex
+	mode     WriteMode
+	pending  []PendingPatch
+	planPath string // absolute path to session plan.md (Design mode allowlist)
 }
 
-// NewStagedWriter creates a Plan-mode writer (default).
+// NewStagedWriter creates a BUILD-mode writer (staged, default).
 func NewStagedWriter(workDir string) *StagedWriter {
 	return &StagedWriter{
 		inner: &FileWriter{WorkDir: workDir},
@@ -52,7 +55,7 @@ func (s *StagedWriter) Description() string {
 }
 func (s *StagedWriter) Schema() map[string]any { return s.inner.Schema() }
 
-// SetMode switches Plan/Act.
+// SetMode switches Plan/Act/Design write gating.
 func (s *StagedWriter) SetMode(m WriteMode) {
 	s.mu.Lock()
 	s.mode = m
@@ -64,6 +67,49 @@ func (s *StagedWriter) Mode() WriteMode {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.mode
+}
+
+// SetPlanPath sets the absolute path of the design plan file (plan.md).
+func (s *StagedWriter) SetPlanPath(abs string) {
+	s.mu.Lock()
+	s.planPath = abs
+	s.mu.Unlock()
+}
+
+// PlanPath returns the configured plan file path.
+func (s *StagedWriter) PlanPath() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.planPath
+}
+
+// IsPlanFile reports whether absPath is the allowed design plan file.
+func (s *StagedWriter) IsPlanFile(absPath string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.planPath == "" {
+		return false
+	}
+	return filepath.Clean(absPath) == filepath.Clean(s.planPath)
+}
+
+// DesignBlocked returns an error result when Design mode forbids this path.
+func (s *StagedWriter) DesignBlocked(absPath string) *Result {
+	s.mu.Lock()
+	mode := s.mode
+	plan := s.planPath
+	s.mu.Unlock()
+	if mode != ModeDesign {
+		return nil
+	}
+	if plan != "" && filepath.Clean(absPath) == filepath.Clean(plan) {
+		return nil
+	}
+	msg := "DESIGN mode: only the plan file may be edited"
+	if plan != "" {
+		msg = fmt.Sprintf("DESIGN mode: only %s may be edited (use write_plan or write_file on that path)", plan)
+	}
+	return &Result{Error: msg}
 }
 
 // Pending returns a copy of staged patches.
@@ -207,12 +253,20 @@ func (s *StagedWriter) Execute(input json.RawMessage) Result {
 	mode := s.mode
 	s.mu.Unlock()
 
-	if mode == ModeAct {
-		// Immediate write (existing behavior)
+	if mode == ModeDesign {
+		if blocked := s.DesignBlocked(path); blocked != nil {
+			return *blocked
+		}
+		// Plan file: write immediately (auto-approved in design mode)
 		return s.inner.Execute(input)
 	}
 
-	// Plan mode: stage only
+	if mode == ModeAct {
+		// Immediate write (YOLO / always-approve)
+		return s.inner.Execute(input)
+	}
+
+	// BUILD (ModePlan): stage only
 	s.mu.Lock()
 	// Replace existing pending for same path
 	found := false

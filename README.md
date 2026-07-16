@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev/)
-[![Version](https://img.shields.io/badge/version-v0.9.3-22D3EE)](https://github.com/NanoMindExplorer/codeforge)
+[![Version](https://img.shields.io/badge/version-v0.9.4-22D3EE)](https://github.com/NanoMindExplorer/codeforge)
 
 | | |
 |---|---|
@@ -12,7 +12,7 @@
 | **Year** | 2026 |
 | **License** | Apache License 2.0 |
 | **Codename** | Neo-Forge |
-| **Version** | `v0.9.3` |
+| **Version** | `v0.9.4` |
 
 CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in your terminal: stream chat, call tools on your project, review file writes safely (Plan mode), and **integrate with GitHub** (PRs, issues, checks, push/pull — the same class of workflows modern AI coding agents use) — without leaving the keyboard.
 
@@ -20,7 +20,7 @@ CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in y
 
 ## Grok 4.5 parity
 
-CodeForge **v0.9.3** ships Phases 1–4 of **Grok Build TUI–compatible** UX. The full plan to 1:1 parity:
+CodeForge **v0.9.4** ships Phases 1–5 of **Grok Build TUI–compatible** UX. The full plan to 1:1 parity:
 
 → **[docs/GROK_PARITY_ROADMAP.md](./docs/GROK_PARITY_ROADMAP.md)** (Phase 0–9)
 
@@ -128,7 +128,7 @@ codeforge --no-motion
 
 ```bash
 codeforge version
-# → codeforge 0.9.3
+# → codeforge 0.9.4
 ```
 
 ---
@@ -238,7 +238,7 @@ codeforge --skip-wizard --no-motion
 1. **Just type** — prompt is focused by default (`❯`).
 2. Press **Enter** → stream a chat answer into the scrollback.
 3. Type **`/act fix tests`** → agent with tools.
-4. **`@`** → attach a file; **`Ctrl+K`** → palette; **`Shift+Tab`** → Plan/Act.
+4. **`@`** → attach a file; **`Ctrl+K`** → palette; **`Shift+Tab`** → BUILD/DESIGN/YOLO.
 5. Press **`?`** anytime for help.
 
 ---
@@ -284,6 +284,8 @@ codeforge --skip-wizard --no-motion
 | `Ctrl+B` | Toggle side panels |
 | `/theme` | Live-preview picker · or `/theme tokyonight` / `auto` |
 | `/resume` | Session picker · `/new` `/fork` `/rewind` `/compact` |
+| `Shift+Tab` | **BUILD → DESIGN → YOLO** session mode |
+| `/plan` | Enter DESIGN plan mode · `/view-plan` approval |
 | `/compact-mode` | Tighter padding (outer_vpad=0) |
 
 ### Chat vs agent
@@ -297,20 +299,19 @@ Agent system behavior (summary):
 
 - Prefer **read before write**
 - Uses filesystem tools under the **project workdir** only (path sandbox)
-- In **Plan** mode, `write_file` is staged until you approve
+- In **BUILD** mode, `write_file` is staged until you approve; **DESIGN** blocks project writes
 
-### Plan vs Act (trust layer)
+### Session modes (BUILD / DESIGN / YOLO)
 
-This is the core safety model for production code.
+| | **BUILD** (default) | **DESIGN** | **YOLO** |
+|---|---------------------|------------|----------|
+| Reads / search | Free | Free | Free |
+| `run_command` | Free | Free | Free |
+| Project file writes | **Staged** → review UI | **Blocked** | **Immediate** |
+| `plan.md` / `write_plan` | Free | Free (auto) | Free |
+| Toggle | `Shift+Tab` cycle · `/mode build\|design\|yolo` · `/plan` |
 
-| | **PLAN** (default) | **ACT** |
-|---|-------------------|---------|
-| `read_file` / `list_dir` / `grep_search` | Free | Free |
-| `run_command` | Free (30s timeout) | Free |
-| `write_file` | **Staged** → Diff shows `⏳ PENDING` → **review UI** | **Written immediately** |
-| Toggle | `Shift+P` or `/mode plan` | `Shift+P` or `/mode act` |
-
-**Recommendation:** keep **PLAN** for unfamiliar tasks; use **ACT** only for tight, trusted iteration loops.
+**Recommendation:** **DESIGN** for ambiguous architecture; **BUILD** for normal work; **YOLO** only for tight trusted loops.
 
 ### Review overlay
 
@@ -595,9 +596,9 @@ internal/agent/      tool loop + progress
 | `/` | INSERT with `/` prefilled |
 | `:` | COMMAND line |
 | `Ctrl+K` | Command palette |
-| `Shift+P` (`P`) | Toggle Plan ↔ Act |
+| `Shift+Tab` | Cycle BUILD → DESIGN → YOLO |
 | `1` / `2` / `3` | Focus Chat / Diff / Files |
-| `Tab` / `Shift+Tab` | Cycle panes |
+| `Tab` | Prompt ↔ scrollback |
 | `j` `k` / arrows | Scroll chat (or Diff navigation) |
 | `g` / `G` | Top / bottom of chat |
 | `PgUp` / `PgDn` · `Ctrl+U` / `Ctrl+D` | Page scroll |
@@ -642,7 +643,9 @@ Type in INSERT (prefix `/`) or via `:` / palette. Aliases in parentheses.
 |---------|-------------|---------|
 | `/provider` (`/p`) | List or switch provider | `/provider claude` |
 | `/model` (`/m`) | List or switch model | `/model gemini-2.5-pro` |
-| `/mode` | Show or set Plan/Act | `/mode plan` · `/mode act` |
+| `/mode` | BUILD / DESIGN / YOLO | `/mode design` · `/mode yolo` |
+| `/plan` | Enter DESIGN (+ optional task) | `/plan add auth` |
+| `/view-plan` | Plan approval UI (a/s/q) | `/view-plan` |
 | `/resume` | Session picker | `/resume` · `/resume <id>` |
 | `/new` | New session id | `/new` |
 | `/fork` | Branch conversation | `/fork` · `/fork continue with X` |
@@ -779,24 +782,31 @@ Explain the control flow of this file
 Enter
 ```
 
-### 2. Safe agent edit (Plan mode)
+### 2. Safe agent edit (BUILD mode)
 
 ```text
-Confirm status bar shows PLAN (or /mode plan)
-I
-fix the nil pointer in internal/foo.go and add a unit test
-Enter
-… watch tools in Chat, pending diff in Diff …
+Confirm status bar shows BUILD (or /mode build)
+/act fix the nil pointer in internal/foo.go and add a unit test
+… watch tools in Chat, pending diff …
 Complete review: j/k · Space · Enter to apply
 /commit          # optional
 ```
 
-### 3. Fast iteration (Act mode)
+### 2b. Design-first (DESIGN mode)
 
 ```text
-Shift+P          # → ACT (writes immediate)
+/plan add caching to the API
+… agent explores, write_plan, exit_plan_mode …
+a                # approve plan → implements in BUILD
+# or s + notes · or q to abandon
+```
+
+### 3. Fast iteration (YOLO mode)
+
+```text
+Shift+Tab Shift+Tab   # BUILD → DESIGN → YOLO
 /act rename Foo to Bar across the package
-/undo            # if the last write was wrong
+/undo                 # if the last write was wrong
 ```
 
 ### 4. Resume yesterday’s session
@@ -915,7 +925,7 @@ Release matrix (intended): `linux/amd64`, `linux/arm64` (Termux), `darwin/arm64`
 | “Provider config” / no API key | Export `GEMINI_API_KEY` (or another provider). Re-run without empty keys. Use `--skip-wizard` once configured. |
 | Empty / hanging stream | Check network and key validity. Gemini free tier has rate limits. |
 | Agent can’t see files outside project | By design — tools are sandboxed to the workdir. |
-| Writes don’t appear on disk | You are likely in **PLAN** mode — finish the **review** overlay (`Enter` to apply). Or switch `/mode act`. |
+| Writes don’t appear on disk | You are in **BUILD** (staged) — finish the **review** overlay. Or `/mode yolo`. **DESIGN** blocks project writes by design. |
 | Want to reverse a write | `/undo` for last applied file; or use git. |
 | TUI feels laggy (SSH / phone) | `codeforge --no-motion` or `CODEFORGE_NO_MOTION=1`. |
 | Icons look broken | Unset Nerd Font env, or install a Nerd Font and set `NERD_FONT=1`. |

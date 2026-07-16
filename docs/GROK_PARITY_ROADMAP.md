@@ -2,10 +2,10 @@
 
 **Goal:** Make CodeForge feel and behave **1:1** with Grok Build TUI (Grok 4.5 class) in layout, interaction, session lifecycle, permissions, and agent surface — without becoming a closed fork of proprietary code.
 
-**Current baseline:** CodeForge **v0.9.3**  
-- Phase 1–4 shipped: blocks, input, themes, session lifecycle  
-- Plan/Act, GitHub, plugins, headless agent, rules, index, MCP  
-- **Not** full Grok parity yet (plan design mode, permissions matrix, ACP, …)
+**Current baseline:** CodeForge **v0.9.4**  
+- Phase 1–5 shipped: blocks, input, themes, sessions, design plan mode  
+- GitHub, plugins, headless agent, rules, index, MCP  
+- **Not** full Grok parity yet (permissions matrix, ACP, sandbox, …)
 
 **Reference:** Grok user-guide docs (`~/.grok/docs/user-guide/`) — theming, shortcuts, sessions, plan mode, permissions, agent ACP.
 
@@ -37,7 +37,7 @@ Phases are **sequential** where later ones depend on earlier UI foundations. Som
 | Slash UX | Instant autocomplete menu | Hint strip only | Medium |
 | `@` | Path + line ranges + gitignore | Fuzzy file list | Medium |
 | Sessions | UUID dirs, resume picker, fork, rewind, compact | ✅ Phase 4 v2 layout | Small |
-| Plan mode | Read-only plan.md + approval UI | Write Plan/Act only | **Large** |
+| Plan mode | Read-only plan.md + approval UI | ✅ Phase 5 DESIGN/BUILD/YOLO | Small |
 | Permissions | allow/deny/ask + modes + hooks | Plan staging only | **Large** |
 | TODOs | Task badges in footer | None | Medium |
 | Thinking | Animated reasoning blocks | Spinner only | Medium |
@@ -189,8 +189,11 @@ Team (or you) can answer “done for v1.0 Grok-parity” with a yes/no checklist
    - Footer: `DESIGN` vs `BUILD` vs `YOLO` (or Grok labels)
 
 ### Exit criteria
-- [ ] User can force “design only” and never touch disk until `a`  
-- [ ] Approval UI matches Grok keybindings for plan review  
+- [x] User can force “design only” and never touch disk until `a`  
+- [x] Approval UI matches Grok keybindings for plan review  
+
+**Shipped in v0.9.4** — Shift+Tab BUILD→DESIGN→YOLO; write gate plan.md only;
+`write_plan` / `exit_plan_mode` tools; `/plan` `/view-plan`; approval a/s/q.
 
 ---
 

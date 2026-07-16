@@ -97,12 +97,17 @@ func (s *SearchReplace) Execute(input json.RawMessage) Result {
 func (s *SearchReplace) commit(absPath, oldContent, newContent, note string) Result {
 	rel := relDisplay(s.WorkDir, absPath)
 	d := diff.Unified(rel, oldContent, newContent)
-	if s.Staged != nil && s.Staged.Mode() == ModePlan {
-		s.Staged.Stage(absPath, rel, oldContent, newContent)
-		return Result{
-			Success: true,
-			Output:  fmt.Sprintf("⏳ PENDING review: %s (%s)", rel, note),
-			Diff:    d,
+	if s.Staged != nil {
+		if blocked := s.Staged.DesignBlocked(absPath); blocked != nil {
+			return *blocked
+		}
+		if s.Staged.Mode() == ModePlan {
+			s.Staged.Stage(absPath, rel, oldContent, newContent)
+			return Result{
+				Success: true,
+				Output:  fmt.Sprintf("⏳ PENDING review: %s (%s)", rel, note),
+				Diff:    d,
+			}
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
@@ -283,10 +288,15 @@ func (a *ApplyPatch) applyOp(op patchOp) Result {
 		}
 		rel := relDisplay(a.WorkDir, path)
 		d := diff.Unified(rel, old, "")
-		if a.Staged != nil && a.Staged.Mode() == ModePlan {
-			// stage empty as delete marker — write empty content; review will write ""
-			a.Staged.Stage(path, rel, old, "")
-			return Result{Success: true, Output: "⏳ PENDING delete: " + rel, Diff: d}
+		if a.Staged != nil {
+			if blocked := a.Staged.DesignBlocked(path); blocked != nil {
+				return *blocked
+			}
+			if a.Staged.Mode() == ModePlan {
+				// stage empty as delete marker — write empty content; review will write ""
+				a.Staged.Stage(path, rel, old, "")
+				return Result{Success: true, Output: "⏳ PENDING delete: " + rel, Diff: d}
+			}
 		}
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return Result{Error: err.Error()}
@@ -322,9 +332,14 @@ func (a *ApplyPatch) applyOp(op patchOp) Result {
 
 func (a *ApplyPatch) writeViaStage(abs, rel, old, neu, note string) Result {
 	d := diff.Unified(rel, old, neu)
-	if a.Staged != nil && a.Staged.Mode() == ModePlan {
-		a.Staged.Stage(abs, rel, old, neu)
-		return Result{Success: true, Output: fmt.Sprintf("⏳ PENDING review: %s (%s)", rel, note), Diff: d}
+	if a.Staged != nil {
+		if blocked := a.Staged.DesignBlocked(abs); blocked != nil {
+			return *blocked
+		}
+		if a.Staged.Mode() == ModePlan {
+			a.Staged.Stage(abs, rel, old, neu)
+			return Result{Success: true, Output: fmt.Sprintf("⏳ PENDING review: %s (%s)", rel, note), Diff: d}
+		}
 	}
 	if neu == "" && note == "delete" {
 		_ = os.Remove(abs)

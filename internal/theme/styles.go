@@ -156,10 +156,12 @@ func ModeBadge(mode string) string {
 		bg = t.Success
 	case "COMMAND", "PALETTE":
 		bg = t.Info
-	case "PLAN":
+	case "PLAN", "DESIGN":
 		bg = t.AccentPlan
-	case "ACT":
+	case "ACT", "YOLO":
 		bg = t.AccentRunning
+	case "BUILD":
+		bg = t.Success
 	case "REVIEW":
 		bg = t.AccentFocus
 	default:

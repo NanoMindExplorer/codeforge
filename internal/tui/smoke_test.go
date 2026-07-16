@@ -49,11 +49,21 @@ func TestSmokeRender(t *testing.T) {
 	m = nm.(Model)
 	_ = m.View()
 
-	// Shift+Tab toggles Plan/Act
+	// Shift+Tab cycles BUILD → DESIGN → YOLO
 	nm, _ = m.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	m = nm.(Model)
-	if m.agentMode != tool.ModeAct {
-		t.Fatalf("expected ACT after Shift+Tab, got mode=%v agent=%v", m.mode, m.agentMode)
+	m = asModel(nm)
+	if m.sessionMode != tool.SessionDesign {
+		t.Fatalf("expected DESIGN after Shift+Tab, got %v", m.sessionMode.Label())
+	}
+	nm, _ = m.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	m = asModel(nm)
+	if m.sessionMode != tool.SessionYolo {
+		t.Fatalf("expected YOLO, got %v", m.sessionMode.Label())
+	}
+	nm, _ = m.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	m = asModel(nm)
+	if m.sessionMode != tool.SessionBuild {
+		t.Fatalf("expected BUILD, got %v", m.sessionMode.Label())
 	}
 	// Theme picker opens (Phase 3)
 	_ = m.executeSlashCommand("/theme")
