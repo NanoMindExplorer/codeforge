@@ -24,6 +24,7 @@ import (
 	"github.com/codeforge/tui/internal/session"
 	"github.com/codeforge/tui/internal/theme"
 	"github.com/codeforge/tui/internal/tool"
+	"github.com/codeforge/tui/internal/tui/slashmenu"
 	"github.com/codeforge/tui/internal/ui/components"
 	"github.com/codeforge/tui/internal/ui/filepicker"
 	"github.com/codeforge/tui/internal/ui/palette"
@@ -58,6 +59,7 @@ type Model struct {
 	palette palette.Model
 	picker  filepicker.Model
 	review  review.Model
+	slash   slashmenu.Model
 	toast   components.Toast
 
 	streamCh <-chan provider.StreamToken
@@ -72,6 +74,11 @@ type Model struct {
 
 	// Esc double-press (Grok: clear prompt / rewind)
 	lastEsc time.Time
+	// Ctrl+C: first clears draft / cancels turn; second quits when idle
+	ctrlCArmed bool
+
+	// vimMode: j/k/h/l only when scrollback focused (Grok [ui].vim_mode)
+	vimMode bool
 
 	// motion
 	borderPhase float64
@@ -113,6 +120,13 @@ func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry,
 	// Grok simple mode: start with prompt focused (ready to type)
 	chat.mode = ModeInsert
 	chat.FocusInput()
+	vim := false
+	if cfg != nil {
+		vim = cfg.UI.VimMode
+		if cfg.UI.CompactMode {
+			theme.SetCompact(true)
+		}
+	}
 	m := Model{
 		cfg:         cfg,
 		providerReg: provReg,
@@ -134,8 +148,10 @@ func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry,
 		palette:     palette.New(),
 		picker:      filepicker.New(workdir),
 		review:      review.New(),
+		slash:       slashmenu.New(),
 		session:     sess,
 		ghClient:    ghc,
+		vimMode:     vim,
 	}
 	// Ensure staged writer is in Plan mode
 	if sw := toolReg.GetStagedWriter(); sw != nil {
@@ -203,29 +219,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.review.Height = msg.Height - 2
 
 	case tea.KeyMsg:
-		// Global
+		// ── Global (after steal-Esc layers) ───────────
 		switch msg.String() {
 		case "ctrl+c":
-			m.saveSession()
-			m.quitting = true
-			return m, tea.Quit
+			return m.handleCtrlC()
 		case "ctrl+l":
 			return m, tea.ClearScreen
 		case "ctrl+b":
-			// Toggle side panels (diff/files) — Grok is single-column by default
 			m.showPanels = !m.showPanels
 			m.recalcSizes()
 			return m, nil
 		case "ctrl+k":
+			// steal: close slash first
+			m.slash.Close()
 			m.openPalette()
 			return m, nil
 		case "shift+tab":
-			// Grok: cycle session write mode Plan ↔ Act
 			m.toggleAgentMode()
 			return m, nil
 		}
 
-		// ── Review / Palette / File pick / Command ──
+		// ── Steal-Esc stack (Grok order) ─────────────
+		// 1) Review  2) Palette  3) File pick  4) Command  5) Slash menu  6) clear/rewind
 		if m.mode == ModeReview {
 			return m.updateReview(msg)
 		}
@@ -255,8 +270,45 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 		}
 
-		// ── Tab: Grok focus swap prompt ↔ scrollback ─
-		if msg.String() == "tab" {
+		// Slash menu navigation steals keys while active
+		if m.slash.Active && m.focusPrompt {
+			switch msg.String() {
+			case "esc":
+				m.slash.Close()
+				return m, nil
+			case "up", "k":
+				m.slash.Move(-1)
+				return m, nil
+			case "down", "j":
+				m.slash.Move(1)
+				return m, nil
+			case "tab":
+				if done := m.slash.Complete(); done != "" {
+					m.chat.SetInput(done)
+					m.slash.UpdateQuery(done)
+				}
+				return m, nil
+			case "enter":
+				if done := m.slash.Complete(); done != "" {
+					// if only command name completed, run if no more args needed
+					m.chat.SetInput(done)
+					m.slash.Close()
+					// Run immediately if it's a no-arg style command
+					cmd := strings.TrimSpace(done)
+					if isImmediateSlash(cmd) {
+						m.chat.ClearInput()
+						if c := m.executeSlashCommand(cmd); c != nil {
+							cmds = append(cmds, c)
+						}
+						return m, tea.Batch(cmds...)
+					}
+					return m, nil
+				}
+			}
+		}
+
+		// ── Tab: focus swap (not when slash uses Tab) ─
+		if msg.String() == "tab" && !m.slash.Active {
 			m.focusPrompt = !m.focusPrompt
 			if m.focusPrompt {
 				m.mode = ModeInsert
@@ -264,32 +316,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.mode = ModeNormal
 				m.chat.BlurInput()
+				m.slash.Close()
 			}
 			m.syncStatus()
 			return m, nil
 		}
 
-		// ── PROMPT focused (Grok simple default) ─────
+		// ── PROMPT focused ───────────────────────────
 		if m.focusPrompt {
 			switch msg.String() {
 			case "esc":
-				// Grok: double Esc clears prompt; single focuses scrollback if empty
-				now := time.Now()
-				if now.Sub(m.lastEsc) < 800*time.Millisecond && m.chat.InputValue() != "" {
-					m.chat.ClearInput()
-					m.lastEsc = time.Time{}
-					return m, nil
-				}
-				m.lastEsc = now
-				if strings.TrimSpace(m.chat.InputValue()) == "" {
-					m.focusPrompt = false
-					m.mode = ModeNormal
-					m.chat.BlurInput()
-				}
-				return m, nil
+				return m.handlePromptEsc()
 			case "enter":
 				if m.chat.streaming {
 					return m, nil
+				}
+				// complete slash if menu open and partial
+				if m.slash.Active {
+					if done := m.slash.Complete(); done != "" && !strings.Contains(strings.TrimSpace(m.chat.InputValue()), " ") {
+						m.chat.SetInput(done)
+					}
+					m.slash.Close()
 				}
 				inp := strings.TrimSpace(m.chat.InputValue())
 				if inp == "" {
@@ -297,7 +344,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				if strings.HasPrefix(inp, "/") {
 					m.chat.ClearInput()
-					// stay on prompt after slash (Grok-like)
+					m.slash.Close()
 					if c := m.executeSlashCommand(inp); c != nil {
 						cmds = append(cmds, c)
 					}
@@ -313,11 +360,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, tea.Batch(cmds...)
 			case "@":
+				m.slash.Close()
 				m.picker.Open()
 				m.mode = ModeFilePick
 				return m, nil
 			case "pgup", "pgdown":
-				// Grok: page scroll while prompt focused
 				m.chat.mode = ModeNormal
 				nc, c := m.chat.Update(msg)
 				m.chat = nc.(ChatModel)
@@ -327,14 +374,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, tea.Batch(cmds...)
 			}
-			// Any other key → textarea
+			// Type into textarea then refresh slash menu
 			m.mode = ModeInsert
 			m.chat.mode = ModeInsert
-			nc, c := m.chat.Update(msg)
-			m.chat = nc.(ChatModel)
-			if c != nil {
-				cmds = append(cmds, c)
+			// Don't let slash menu steal plain typing via up/down already handled
+			if msg.String() != "up" && msg.String() != "down" || !m.slash.Active {
+				nc, c := m.chat.Update(msg)
+				m.chat = nc.(ChatModel)
+				if c != nil {
+					cmds = append(cmds, c)
+				}
 			}
+			m.slash.Width = m.width
+			m.slash.UpdateQuery(m.chat.InputValue())
+			m.ctrlCArmed = false
 			m.syncStatus()
 			return m, tea.Batch(cmds...)
 		}
@@ -342,10 +395,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// ── SCROLLBACK focused ───────────────────────
 		switch msg.String() {
 		case "esc":
-			// stay on scrollback
+			// double-esc with messages → rewind notice (Phase 4 full picker)
+			now := time.Now()
+			if now.Sub(m.lastEsc) < 800*time.Millisecond && len(m.chat.messages) > 0 {
+				m.chat.AddSystemMessage("Rewind: use /undo for last write · full /rewind picker lands in Phase 4")
+				m.lastEsc = time.Time{}
+				return m, nil
+			}
+			m.lastEsc = now
 			return m, nil
 		case "i", "space":
-			// Grok: focus prompt
 			m.focusPrompt = true
 			m.mode = ModeInsert
 			m.chat.FocusInput()
@@ -355,6 +414,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mode = ModeInsert
 			m.chat.SetInput("/")
 			m.chat.FocusInput()
+			m.slash.UpdateQuery("/")
 			return m, nil
 		case ":":
 			m.mode = ModeCommand
@@ -379,12 +439,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showPanels = true
 			m.activePane = PaneContext
 			m.recalcSizes()
-		case "j", "down", "k", "up", "g", "G", "pgup", "pgdown", "ctrl+d", "ctrl+u":
-			nc, c := m.chat.Update(msg)
-			m.chat = nc.(ChatModel)
-			if c != nil {
-				cmds = append(cmds, c)
-			}
 		case "n", "p":
 			nd, c := m.diff.Update(msg)
 			m.diff = nd.(DiffModel)
@@ -392,7 +446,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, c)
 			}
 		default:
-			// Grok simple mode: printable keys auto-focus prompt and type
+			// Scroll keys: always arrows/pg; letter keys only if vimMode
+			if m.isScrollKey(msg) {
+				nc, c := m.chat.Update(msg)
+				m.chat = nc.(ChatModel)
+				if c != nil {
+					cmds = append(cmds, c)
+				}
+				break
+			}
+			// Simple mode: printable → focus prompt
 			if msg.Type == tea.KeyRunes || (len(msg.String()) == 1 && msg.String() != "q") {
 				m.focusPrompt = true
 				m.mode = ModeInsert
@@ -402,6 +465,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if c != nil {
 					cmds = append(cmds, c)
 				}
+				m.slash.UpdateQuery(m.chat.InputValue())
 			}
 		}
 
@@ -600,27 +664,50 @@ func (m *Model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.picker.Cancel()
 		m.mode = ModeInsert
+		m.focusPrompt = true
 		m.chat.FocusInput()
 		return m, nil
 	case "enter":
 		m.picker.Confirm()
 		m.mode = ModeInsert
+		m.focusPrompt = true
 		m.chat.FocusInput()
 		if m.picker.Selected != "" {
-			rel := m.picker.Selected
-			// insert @file into textarea
+			sel := m.picker.Selected
+			// strip range for display token; keep full sel for attach
+			display := sel
 			cur := m.chat.InputValue()
-			m.chat.SetInput(cur + "@" + rel + " ")
-			if body, err := filepicker.ReadFileContent(m.workdir, rel, 32_000); err == nil {
-				m.chat.AttachFile(rel, body)
-				m.context.MarkTouched(rel)
+			// replace trailing @fragment if any
+			if i := strings.LastIndex(cur, "@"); i >= 0 {
+				cur = cur[:i]
+			}
+			m.chat.SetInput(cur + "@" + display + " ")
+			if body, err := filepicker.ReadFileContent(m.workdir, sel, 32_000); err == nil {
+				m.chat.AttachFile(sel, body)
+				pathOnly := sel
+				if i := strings.LastIndex(sel, ":"); i >= 0 {
+					pathOnly = sel[:i]
+				}
+				m.context.MarkTouched(pathOnly)
 			}
 		}
 		return m, nil
-	case "up", "k":
+	case "up":
 		m.picker.Move(-1)
-	case "down", "j":
+	case "down":
 		m.picker.Move(1)
+	case "k":
+		if m.vimMode {
+			m.picker.Move(-1)
+		} else {
+			m.picker.Type("k")
+		}
+	case "j":
+		if m.vimMode {
+			m.picker.Move(1)
+		} else {
+			m.picker.Type("j")
+		}
 	case "backspace":
 		m.picker.Backspace()
 	default:
@@ -629,6 +716,92 @@ func (m *Model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m *Model) handleCtrlC() (tea.Model, tea.Cmd) {
+	// Grok: 1) clear draft  2) cancel turn  3) quit
+	if draft := strings.TrimSpace(m.chat.InputValue()); draft != "" {
+		m.chat.PushHistory(draft)
+		m.chat.ClearInput()
+		m.slash.Close()
+		m.ctrlCArmed = false
+		m.toast = components.NewToast("Draft cleared", "info", time.Second)
+		return *m, nil
+	}
+	if m.chat.streaming {
+		m.chat.CancelTurn()
+		m.streamCh = nil
+		m.agentCh = nil
+		m.ctrlCArmed = false
+		m.toast = components.NewToast("Cancelled", "warning", 2*time.Second)
+		return *m, nil
+	}
+	if m.ctrlCArmed {
+		m.saveSession()
+		m.quitting = true
+		return *m, tea.Quit
+	}
+	m.ctrlCArmed = true
+	m.toast = components.NewToast("Ctrl+C again to quit", "info", 2*time.Second)
+	return *m, nil
+}
+
+func (m *Model) handlePromptEsc() (tea.Model, tea.Cmd) {
+	// steal: slash menu
+	if m.slash.Active {
+		m.slash.Close()
+		return *m, nil
+	}
+	now := time.Now()
+	draft := strings.TrimSpace(m.chat.InputValue())
+	if draft != "" {
+		if now.Sub(m.lastEsc) < 800*time.Millisecond {
+			m.chat.PushHistory(draft)
+			m.chat.ClearInput()
+			m.slash.Close()
+			m.lastEsc = time.Time{}
+			m.toast = components.NewToast("Prompt cleared", "info", time.Second)
+			return *m, nil
+		}
+		m.lastEsc = now
+		m.toast = components.NewToast("Esc again to clear", "info", time.Second)
+		return *m, nil
+	}
+	// empty prompt
+	if now.Sub(m.lastEsc) < 800*time.Millisecond && len(m.chat.messages) > 0 {
+		m.chat.AddSystemMessage("Rewind: /undo last write · full picker in Phase 4")
+		m.lastEsc = time.Time{}
+		return *m, nil
+	}
+	m.lastEsc = now
+	m.focusPrompt = false
+	m.mode = ModeNormal
+	m.chat.BlurInput()
+	m.slash.Close()
+	return *m, nil
+}
+
+func (m *Model) isScrollKey(msg tea.KeyMsg) bool {
+	switch msg.String() {
+	case "up", "down", "left", "right", "pgup", "pgdown", "ctrl+d", "ctrl+u":
+		return true
+	case "j", "k", "h", "l", "g", "G", "e", "E":
+		return m.vimMode
+	default:
+		return false
+	}
+}
+
+func isImmediateSlash(cmd string) bool {
+	cmd = strings.TrimSpace(cmd)
+	switch cmd {
+	case "/help", "/about", "/cost", "/budget", "/rules", "/index",
+		"/status", "/clear", "/quit", "/theme", "/compact-mode", "/vim-mode",
+		"/sessions", "/undo", "/push", "/pull":
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *Model) openPalette() {
@@ -1017,6 +1190,11 @@ func (m Model) View() string {
 		parts = append(parts, m.picker.View())
 	}
 
+	// Slash menu floats above composer
+	if m.slash.Active && m.focusPrompt {
+		m.slash.Width = m.width
+		parts = append(parts, m.slash.View())
+	}
 	// Composer + Grok footer
 	parts = append(parts, m.chat.ViewPrompt(m.focusPrompt))
 	parts = append(parts, m.status.ViewFooter())
@@ -1334,6 +1512,16 @@ func (m *Model) executeSlashCommand(input string) tea.Cmd {
 		}
 		m.chat.AddSystemMessage("Compact mode " + state)
 		m.toast = components.NewToast("Compact "+state, "info", 2*time.Second)
+		return nil
+
+	case "vim-mode", "vim":
+		m.vimMode = !m.vimMode
+		state := "off"
+		if m.vimMode {
+			state = "on"
+		}
+		m.chat.AddSystemMessage("Vim scrollback keys " + state + " (j/k/h/l/g/G/e/E)")
+		m.toast = components.NewToast("Vim mode "+state, "info", 2*time.Second)
 		return nil
 
 	case "read", "r":
@@ -1939,7 +2127,7 @@ var slashCommands = []string{
 	"/act", "/read", "/ls", "/grep", "/run", "/explain", "/fix",
 	"/status", "/commit", "/push", "/pull", "/pr", "/issue", "/gh",
 	"/provider", "/model", "/mode", "/cost", "/budget", "/rules", "/index",
-	"/theme", "/compact-mode",
+	"/theme", "/compact-mode", "/vim-mode",
 	"/sessions", "/undo", "/clear", "/help", "/about", "/quit",
 }
 
@@ -1953,45 +2141,36 @@ func autocomplete(input string) string {
 }
 
 func helpText() string {
-	return `CodeForge · Grok-parity Phase 1  ·  v0.9.0
+	return `CodeForge · Grok-parity Phase 2  ·  v0.9.1
 
-LAYOUT
-  Scrollback  foldable blocks (you / assistant / tools / diffs)
-  Prompt      ❯ composer — focused by default
-  Footer      PROMPT/SCROLL · PLAN/ACT · model · cost · theme
+FOCUS (steal-Esc order: overlay → slash → @ → clear/rewind)
+  Tab            Prompt ↔ scrollback
+  Esc            Close menu / focus scrollback
+  2× Esc (800ms) Clear prompt (saves history) · or rewind hint
+  Ctrl+C         Clear draft → cancel turn → quit
+  Type           Auto-focus prompt (simple mode)
 
-SCROLLBACK (focus with Tab / Esc)
-  j / k · ↑↓    Select block
-  h / l · ←→    Collapse / expand selected
-  e             Toggle fold
-  E             Expand all / collapse all
-  g / G         Top / follow-tail (resume auto-scroll)
-  PgUp/PgDn     Page scroll
-  Ctrl+B        Side panels (diff/files)
-
-FOCUS
-  Tab           Prompt ↔ scrollback
-  Esc · 2×Esc   Scrollback / clear prompt
-  Type          Auto-focus prompt
-
-MODES
-  Shift+Tab     Plan ↔ Act
-  /theme        Theme cycle
-  /compact-mode Compact padding
+SCROLLBACK
+  ↑↓ / PgUp/Dn   Always
+  j/k h/l g/G e/E  When /vim-mode on
+  G              Follow-tail
+  Ctrl+B         Side panels
 
 INPUT
-  @  file   /  commands   Ctrl+K  palette   Enter  send
+  /              Slash menu (↑↓ Tab/Enter complete)
+  @              File picker · !hidden · path:10-50
+  Ctrl+K         Palette
+  Shift+Tab      Plan ↔ Act
+  /theme /compact-mode /vim-mode
 `
 }
 
 func aboutText() string {
-	return `CodeForge TUI v0.9.0
+	return `CodeForge TUI v0.9.1
 Created by NanoMind — 2026 — Apache 2.0
 
-Phase 1: block scrollback engine (fold · select · sticky · follow-tail)
-UX: Grok 4.5–compatible layout · GrokNight theme
-Stack: Go · Bubble Tea · multi-provider · GitHub · plugins · headless
-
+Phase 1: block scrollback · Phase 2: input fidelity (slash menu, @ ranges,
+  steal-Esc, Ctrl+C policy, vim mode)
 See docs/GROK_PARITY_ROADMAP.md
 `
 }

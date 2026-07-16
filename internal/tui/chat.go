@@ -54,6 +54,9 @@ type ChatModel struct {
 
 	attachments map[string]string
 	rulesText   string
+
+	// cancelFn cancels in-flight stream/agent (Grok Ctrl+C)
+	cancelFn context.CancelFunc
 }
 
 func NewChatModel(provReg *provider.Registry, toolReg *tool.Registry, repo *git.Repo, workdir string) ChatModel {
@@ -165,6 +168,8 @@ func (c *ChatModel) Submit() tea.Cmd {
 	msgs := make([]provider.Message, len(c.messages))
 	copy(msgs, c.messages)
 	prov := c.providerReg
+	ctx, cancel := context.WithCancel(context.Background())
+	c.cancelFn = cancel
 
 	return func() tea.Msg {
 		p, err := prov.Current()
@@ -176,7 +181,7 @@ func (c *ChatModel) Submit() tea.Cmd {
 			MaxTokens: 4096,
 			System:    c.systemWithRules(systemPrompt),
 		}
-		ch, err := p.Stream(context.Background(), req)
+		ch, err := p.Stream(ctx, req)
 		if err != nil {
 			return errMsg{err: err}
 		}
@@ -217,6 +222,8 @@ func (c *ChatModel) SubmitAgent(task string) tea.Cmd {
 	copy(msgs, c.messages)
 	prov := c.providerReg
 	toolReg := c.toolReg
+	ctx, cancel := context.WithCancel(context.Background())
+	c.cancelFn = cancel
 
 	return func() tea.Msg {
 		p, err := prov.Current()
@@ -229,13 +236,38 @@ func (c *ChatModel) SubmitAgent(task string) tea.Cmd {
 			System:    c.systemWithRules(agentSystemPrompt),
 			MaxTokens: 4096,
 		}
-		ch := agent.Run(context.Background(), cfg, msgs)
+		ch := agent.Run(ctx, cfg, msgs)
 		first, ok := <-ch
 		if !ok {
 			return AgentOpenedMsg{Ch: nil, First: agent.Event{Kind: agent.EventDone}}
 		}
 		return AgentOpenedMsg{Ch: ch, First: first}
 	}
+}
+
+// CancelTurn aborts in-flight stream/agent (Grok second Ctrl+C).
+func (c *ChatModel) CancelTurn() {
+	if c.cancelFn != nil {
+		c.cancelFn()
+		c.cancelFn = nil
+	}
+	if c.streaming {
+		c.store.SealAssistant()
+		c.store.AddSystem("⏹ cancelled")
+		c.streaming = false
+		c.streamFull = ""
+		c.agentFull = ""
+	}
+}
+
+// PushHistory saves a cleared draft to prompt history (double-Esc).
+func (c *ChatModel) PushHistory(s string) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return
+	}
+	c.history = append(c.history, s)
+	c.historyIdx = len(c.history)
 }
 
 func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -347,7 +379,7 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-		// Scrollback navigation when Normal (scrollback focused)
+		// Scrollback navigation when Normal (keys filtered by model for vim mode)
 		if c.mode == ModeNormal {
 			c.store.SetShowSelection(true)
 			switch msg.String() {
@@ -356,7 +388,6 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "k", "up":
 				c.store.SelectPrev()
 			case "h", "left":
-				// collapse selected (Grok fold)
 				idx := c.store.SelectedIndex()
 				bl := c.store.Blocks()
 				if idx >= 0 && idx < len(bl) && bl[idx].Foldable && !bl[idx].Collapsed {
@@ -378,9 +409,6 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				c.store.GotoBottom()
 			case "ctrl+j":
 				c.store.LineDown()
-			case "ctrl+k":
-				// note: global ctrl+k is palette in model; only if scrollback gets it
-				c.store.LineUp()
 			case "pgdown", "ctrl+d":
 				c.store.PageDown(msg.String() == "ctrl+d")
 			case "pgup", "ctrl+u":

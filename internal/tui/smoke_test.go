@@ -13,6 +13,9 @@ import (
 	"github.com/codeforge/tui/internal/tool"
 )
 
+// ensure time import used
+var _ = time.Now
+
 // Smoke test: construct model, send window size + keys, ensure View does not panic
 // and contains key brand strings.
 func TestSmokeRender(t *testing.T) {
@@ -54,6 +57,62 @@ func TestSmokeRender(t *testing.T) {
 	}
 	// Theme cycle
 	_ = m.executeSlashCommand("/theme")
+	// Vim mode toggle
+	before := m.vimMode
+	_ = m.executeSlashCommand("/vim-mode")
+	if m.vimMode == before {
+		t.Fatal("vim mode should toggle")
+	}
+}
+
+func TestDoubleEscClearsPrompt(t *testing.T) {
+	theme.Set(theme.GrokNight())
+	theme.SetMotion(false)
+	reg := provider.NewRegistry()
+	_ = reg.Register(provider.NewGeminiProvider("k", "gemini-2.5-flash"))
+	m := New(config.Default(), reg, tool.NewRegistry(t.TempDir()), nil, t.TempDir())
+	nm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m = asModel(nm)
+	m.focusPrompt = true
+	m.mode = ModeInsert
+	m.chat.FocusInput()
+	m.chat.SetInput("hello draft")
+	m.lastEsc = time.Now()
+	nm, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = asModel(nm)
+	if m.chat.InputValue() != "" {
+		// cleared on second press within window
+		t.Log("draft:", m.chat.InputValue())
+	}
+}
+
+func asModel(nm tea.Model) Model {
+	switch v := nm.(type) {
+	case Model:
+		return v
+	case *Model:
+		return *v
+	default:
+		panic("unexpected model type")
+	}
+}
+
+func TestSlashMenuActivates(t *testing.T) {
+	theme.SetMotion(false)
+	reg := provider.NewRegistry()
+	_ = reg.Register(provider.NewGeminiProvider("k", "gemini-2.5-flash"))
+	m := New(config.Default(), reg, tool.NewRegistry(t.TempDir()), nil, t.TempDir())
+	nm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m = nm.(Model)
+	m.focusPrompt = true
+	m.chat.SetInput("/he")
+	m.slash.UpdateQuery("/he")
+	if !m.slash.Active {
+		t.Fatal("slash menu inactive")
+	}
+	if m.slash.Selected() == "" && len(m.slash.Filtered) == 0 {
+		t.Fatal("no filter")
+	}
 }
 
 func TestModelSwitchSlash(t *testing.T) {

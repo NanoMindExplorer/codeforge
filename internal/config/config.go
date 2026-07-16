@@ -21,6 +21,14 @@ type Config struct {
     MCP             MCPConfig           `mapstructure:"mcp"`
     Plugins         PluginsConfig       `mapstructure:"plugins"`
     Telemetry       TelemetryConfig     `mapstructure:"telemetry"`
+    UI              UIConfig            `mapstructure:"ui"`
+}
+
+// UIConfig matches Grok [ui] knobs used by CodeForge.
+type UIConfig struct {
+    // VimMode enables j/k/h/l/g/G single-letter scrollback bindings (Grok vim_mode).
+    VimMode     bool `mapstructure:"vim_mode"`
+    CompactMode bool `mapstructure:"compact_mode"`
 }
 
 // PluginsConfig lists extra plugin search directories.
@@ -159,6 +167,10 @@ func Default() *Config {
         Telemetry: TelemetryConfig{
             Enabled:   false,
             LocalOnly: true,
+        },
+        UI: UIConfig{
+            VimMode:     false,
+            CompactMode: false,
         },
     }
 }

@@ -364,7 +364,18 @@ When implementing, each phase PR should:
 - [x] Unit tests (fold, follow, sticky, stream)
 - [ ] Dogfood screenshot vs Grok (optional)
 
-### Phase 2–9
+### Phase 2 — Input & focus fidelity
+- [x] Steal-Esc stack (review → palette → @ → command → slash → clear/rewind)
+- [x] Double-Esc 800ms clear prompt (history) + rewind hint
+- [x] Ctrl+C: clear draft → cancel turn → quit
+- [x] Cancelable stream/agent context
+- [x] Slash autocomplete menu (fuzzy, Tab/Enter)
+- [x] @ picker: gitignore, !hidden, path:line-range
+- [x] `/vim-mode` + config `ui.vim_mode`
+- [x] Prompt history on clear
+- [x] Tests (slashmenu, filepicker, smoke)
+
+### Phase 3–9
 - [ ] Not started
 
 ---
