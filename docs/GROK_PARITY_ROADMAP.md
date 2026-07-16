@@ -2,10 +2,10 @@
 
 **Goal:** Make CodeForge feel and behave **1:1** with Grok Build TUI (Grok 4.5 class) in layout, interaction, session lifecycle, permissions, and agent surface — without becoming a closed fork of proprietary code.
 
-**Current baseline:** CodeForge **v0.9.2**  
-- Phase 1–3 shipped: block scrollback, input fidelity, theme/chrome parity  
+**Current baseline:** CodeForge **v0.9.3**  
+- Phase 1–4 shipped: blocks, input, themes, session lifecycle  
 - Plan/Act, GitHub, plugins, headless agent, rules, index, MCP  
-- **Not** full Grok parity yet (sessions/rewind, plan design mode, permissions matrix, ACP, …)
+- **Not** full Grok parity yet (plan design mode, permissions matrix, ACP, …)
 
 **Reference:** Grok user-guide docs (`~/.grok/docs/user-guide/`) — theming, shortcuts, sessions, plan mode, permissions, agent ACP.
 
@@ -36,7 +36,7 @@ Phases are **sequential** where later ones depend on earlier UI foundations. Som
 | Vim scrollback | Optional `j/k` fold, turn jumps | Partial scroll keys | Medium |
 | Slash UX | Instant autocomplete menu | Hint strip only | Medium |
 | `@` | Path + line ranges + gitignore | Fuzzy file list | Medium |
-| Sessions | UUID dirs, resume picker, fork, rewind, compact | JSON sessions, list/resume | **Large** |
+| Sessions | UUID dirs, resume picker, fork, rewind, compact | ✅ Phase 4 v2 layout | Small |
 | Plan mode | Read-only plan.md + approval UI | Write Plan/Act only | **Large** |
 | Permissions | allow/deny/ask + modes + hooks | Plan staging only | **Large** |
 | TODOs | Task badges in footer | None | Medium |
@@ -163,9 +163,12 @@ Team (or you) can answer “done for v1.0 Grok-parity” with a yes/no checklist
 9. Headless + TUI share the same session writer
 
 ### Exit criteria
-- [ ] Kill terminal → `codeforge` → `/resume` → identical scrollback blocks  
-- [ ] Rewind undoes last agent file writes from that turn  
-- [ ] Export/import still work against new layout  
+- [x] Kill terminal → `codeforge` → `/resume` → identical scrollback blocks  
+- [x] Rewind undoes last agent file writes from that turn  
+- [x] Export/import still work against new layout  
+
+**Shipped in v0.9.3** — `~/.codeforge/sessions/<encoded-cwd>/<id>/` with summary + jsonl,
+`/resume` `/new` `/fork` `/rewind` `/compact` `/context` `/session-info`, headless session writer.
 
 ---
 

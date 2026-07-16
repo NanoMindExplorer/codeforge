@@ -31,6 +31,9 @@ func TestExportImport(t *testing.T) {
 	if len(imp.Messages) != 1 {
 		t.Fatal(imp.Messages)
 	}
+	if imp.Format != "v2" {
+		t.Fatal(imp.Format)
+	}
 }
 
 func TestExportAll(t *testing.T) {

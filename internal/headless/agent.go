@@ -14,6 +14,7 @@ import (
 	"github.com/codeforge/tui/internal/app"
 	"github.com/codeforge/tui/internal/provider"
 	"github.com/codeforge/tui/internal/rules"
+	"github.com/codeforge/tui/internal/session"
 )
 
 // Options for a headless agent run.
@@ -43,6 +44,7 @@ type Result struct {
 	WorkDir      string            `json:"workdir"`
 	Provider     string            `json:"provider,omitempty"`
 	Model        string            `json:"model,omitempty"`
+	SessionID    string            `json:"session_id,omitempty"`
 	Meta         map[string]string `json:"meta,omitempty"`
 }
 
@@ -160,6 +162,19 @@ Reply with a clear summary of what you did.`
 		}
 	}
 
+	// Persist session (shared v2 layout with TUI)
+	sess := session.New(rt.ProvReg.CurrentName(), p.Model(), rt.WorkDir)
+	sess.Messages = []provider.Message{
+		{Role: provider.RoleUser, Content: opt.Task},
+		{Role: provider.RoleAssistant, Content: strings.TrimSpace(text.String())},
+	}
+	sess.Tokens = inTok + outTok
+	_, _ = sess.RecordRewindPoint(opt.Task, "headless")
+	_ = sess.Save()
+	_ = sess.AppendEvent("headless_done", map[string]any{
+		"ok": lastErr == nil, "tools": toolCalls, "ms": time.Since(start).Milliseconds(),
+	})
+
 	res := Result{
 		OK:           lastErr == nil,
 		Text:         strings.TrimSpace(text.String()),
@@ -171,6 +186,7 @@ Reply with a clear summary of what you did.`
 		WorkDir:      rt.WorkDir,
 		Provider:     rt.ProvReg.CurrentName(),
 		Model:        p.Model(),
+		SessionID:    sess.ID,
 	}
 	if lastErr != nil {
 		res.Error = lastErr.Error()
@@ -187,8 +203,8 @@ Reply with a clear summary of what you did.`
 		if lastErr != nil {
 			fmt.Fprintf(w, "\n⚠ agent error: %v\n", lastErr)
 		}
-		fmt.Fprintf(w, "\n— done in %dms · tools=%d · tokens in/out=%d/%d\n",
-			res.DurationMs, res.ToolCalls, res.InputTokens, res.OutputTokens)
+		fmt.Fprintf(w, "\n— done in %dms · tools=%d · tokens in/out=%d/%d · session=%s\n",
+			res.DurationMs, res.ToolCalls, res.InputTokens, res.OutputTokens, sess.ID)
 	}
 
 	if lastErr != nil {

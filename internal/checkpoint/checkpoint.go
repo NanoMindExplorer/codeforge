@@ -77,9 +77,73 @@ func UndoLast(sessionID string) (relPath string, err error) {
 	}
 	sort.Strings(metas)
 	last := metas[len(metas)-1]
-	metaPath := filepath.Join(dir, last)
-	dataPath := strings.TrimSuffix(metaPath, ".meta") + ".data"
+	return restoreAndRemove(filepath.Join(dir, last))
+}
 
+// UndoAfter restores all checkpoints saved strictly after t (newest first)
+// and removes them. Used by /rewind.
+func UndoAfter(sessionID string, t time.Time) ([]string, error) {
+	dir, err := Dir(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	type item struct {
+		meta string
+		at   time.Time
+	}
+	var items []item
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".meta") {
+			continue
+		}
+		metaPath := filepath.Join(dir, e.Name())
+		at, ok := metaTime(metaPath)
+		if !ok {
+			// fallback: parse id prefix from filename
+			at = time.Time{}
+		}
+		if at.After(t) || (at.IsZero() && strings.Compare(e.Name(), t.Format("20060102-150405")) > 0) {
+			items = append(items, item{meta: metaPath, at: at})
+		}
+	}
+	// newest first so we undo in reverse write order
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].at.After(items[j].at)
+	})
+	var restored []string
+	for _, it := range items {
+		rel, err := restoreAndRemove(it.meta)
+		if err != nil {
+			continue
+		}
+		restored = append(restored, rel)
+	}
+	return restored, nil
+}
+
+func metaTime(metaPath string) (time.Time, bool) {
+	b, err := os.ReadFile(metaPath)
+	if err != nil {
+		return time.Time{}, false
+	}
+	lines := strings.SplitN(string(b), "\n", 4)
+	if len(lines) >= 3 {
+		if ts, err := time.Parse(time.RFC3339, strings.TrimSpace(lines[2])); err == nil {
+			return ts, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func restoreAndRemove(metaPath string) (relPath string, err error) {
+	dataPath := strings.TrimSuffix(metaPath, ".meta") + ".data"
 	metaBytes, err := os.ReadFile(metaPath)
 	if err != nil {
 		return "", err
@@ -96,7 +160,6 @@ func UndoLast(sessionID string) (relPath string, err error) {
 		return "", err
 	}
 	if len(data) == 0 {
-		// File was new — remove it
 		_ = os.Remove(absPath)
 	} else {
 		if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
@@ -106,7 +169,6 @@ func UndoLast(sessionID string) (relPath string, err error) {
 			return "", err
 		}
 	}
-	// Remove used checkpoint
 	_ = os.Remove(metaPath)
 	_ = os.Remove(dataPath)
 	return relPath, nil

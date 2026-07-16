@@ -8,12 +8,13 @@ import (
 	"strings"
 )
 
-// Export writes a session (by ID) to destPath as JSON.
+// Export writes a session (by ID) to destPath as a single JSON bundle.
 func Export(id, destPath string) error {
 	s, err := Load(id)
 	if err != nil {
 		return err
 	}
+	// Ensure full messages loaded
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
@@ -21,7 +22,7 @@ func Export(id, destPath string) error {
 	return os.WriteFile(destPath, data, 0644)
 }
 
-// Import reads a session JSON file into the sessions dir (new copy).
+// Import reads a session JSON file into the sessions dir (v2 layout).
 func Import(srcPath string) (*Session, error) {
 	data, err := os.ReadFile(srcPath)
 	if err != nil {
@@ -34,9 +35,14 @@ func Import(srcPath string) (*Session, error) {
 	if s.ID == "" {
 		s.ID = "import-" + slugify(filepath.Base(srcPath))
 	}
-	// avoid clobber: re-id if exists
-	if _, err := Load(s.ID); err == nil {
+	// avoid clobber
+	if existing, err := Load(s.ID); err == nil && existing != nil {
 		s.ID = s.ID + "-copy"
+	}
+	s.Format = "v2"
+	s.dir = ""
+	if s.Workdir == "" {
+		s.Workdir, _ = os.Getwd()
 	}
 	if err := s.Save(); err != nil {
 		return nil, err
@@ -44,7 +50,7 @@ func Import(srcPath string) (*Session, error) {
 	return &s, nil
 }
 
-// ExportAll copies all sessions into destDir.
+// ExportAll copies all sessions into destDir as flat JSON files.
 func ExportAll(destDir string) (int, error) {
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return 0, err
@@ -54,7 +60,11 @@ func ExportAll(destDir string) (int, error) {
 		return 0, err
 	}
 	n := 0
-	for _, s := range list {
+	for _, light := range list {
+		s, err := Load(light.ID)
+		if err != nil {
+			continue
+		}
 		name := fmt.Sprintf("%s-%s.json", s.ID, s.Slug)
 		name = strings.ReplaceAll(name, string(filepath.Separator), "_")
 		data, err := json.MarshalIndent(s, "", "  ")

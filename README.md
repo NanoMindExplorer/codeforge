@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev/)
-[![Version](https://img.shields.io/badge/version-v0.9.2-22D3EE)](https://github.com/NanoMindExplorer/codeforge)
+[![Version](https://img.shields.io/badge/version-v0.9.3-22D3EE)](https://github.com/NanoMindExplorer/codeforge)
 
 | | |
 |---|---|
@@ -12,7 +12,7 @@
 | **Year** | 2026 |
 | **License** | Apache License 2.0 |
 | **Codename** | Neo-Forge |
-| **Version** | `v0.9.2` |
+| **Version** | `v0.9.3` |
 
 CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in your terminal: stream chat, call tools on your project, review file writes safely (Plan mode), and **integrate with GitHub** (PRs, issues, checks, push/pull — the same class of workflows modern AI coding agents use) — without leaving the keyboard.
 
@@ -20,7 +20,7 @@ CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in y
 
 ## Grok 4.5 parity
 
-CodeForge **v0.9.2** ships Phases 1–3 of **Grok Build TUI–compatible** UX. The full plan to 1:1 parity:
+CodeForge **v0.9.3** ships Phases 1–4 of **Grok Build TUI–compatible** UX. The full plan to 1:1 parity:
 
 → **[docs/GROK_PARITY_ROADMAP.md](./docs/GROK_PARITY_ROADMAP.md)** (Phase 0–9)
 
@@ -128,7 +128,7 @@ codeforge --no-motion
 
 ```bash
 codeforge version
-# → codeforge 0.9.2
+# → codeforge 0.9.3
 ```
 
 ---
@@ -283,6 +283,7 @@ codeforge --skip-wizard --no-motion
 | `Shift+Tab` | Plan ↔ Act |
 | `Ctrl+B` | Toggle side panels |
 | `/theme` | Live-preview picker · or `/theme tokyonight` / `auto` |
+| `/resume` | Session picker · `/new` `/fork` `/rewind` `/compact` |
 | `/compact-mode` | Tighter padding (outer_vpad=0) |
 
 ### Chat vs agent
@@ -345,18 +346,18 @@ Useful for: “explain this file”, “refactor this module”, without a separ
 
 Navigate with `↑`/`↓` (or `j`/`k`), confirm with **Enter**, close with **Esc**.
 
-### Sessions
+### Sessions (Phase 4)
 
-- Conversations are auto-saved under `~/.codeforge/sessions/`.
-- Metadata includes messages, provider/model, workdir, cumulative cost/tokens, and a one-line preview.
-- **`/sessions`** — list recent sessions.
-- **`/sessions <id>`** — resume a session (restores transcript + provider/model when possible).
-- Also available from the **Ctrl+K** palette under category `session`.
+- Layout: `~/.codeforge/sessions/<encoded-cwd>/<session-id>/` with `summary.json`, `chat_history.jsonl`, `updates.jsonl`, `rewind_points.jsonl`.
+- **`/resume`** — full-screen picker (filter, preview, Enter). **`/sessions <id>`** still works.
+- **`/new`** — new session id · **`/clear`** — wipe chat only (same id).
+- **`/fork`** · **`/rewind`** (also **2× Esc** idle) · **`/compact`** · **`/context`** · **`/session-info`**.
+- Headless agent writes the same layout and returns `session_id` in JSON.
 
 ### Undo / checkpoints
 
 - When a write is **applied** (review accept, or Act mode), a snapshot of the previous content is stored under `~/.codeforge/checkpoints/<session-id>/`.
-- **`/undo`** restores the **last** written file from its checkpoint.
+- **`/undo`** restores the **last** written file · **`/rewind`** restores all files after a turn.
 
 This complements—not replaces—git. Prefer git commits for permanent history.
 
@@ -642,7 +643,14 @@ Type in INSERT (prefix `/`) or via `:` / palette. Aliases in parentheses.
 | `/provider` (`/p`) | List or switch provider | `/provider claude` |
 | `/model` (`/m`) | List or switch model | `/model gemini-2.5-pro` |
 | `/mode` | Show or set Plan/Act | `/mode plan` · `/mode act` |
-| `/sessions` | List or resume sessions | `/sessions` · `/sessions 20260716-101500` |
+| `/resume` | Session picker | `/resume` · `/resume <id>` |
+| `/new` | New session id | `/new` |
+| `/fork` | Branch conversation | `/fork` · `/fork continue with X` |
+| `/rewind` | Restore files + truncate chat | `/rewind` · `/rewind last` |
+| `/compact` | Compress history | `/compact` · `/compact keep API` |
+| `/context` | Token breakdown | `/context` |
+| `/session-info` | Session metadata | `/session-info` |
+| `/sessions` | List sessions | `/sessions` · `/sessions <id>` |
 | `/undo` | Restore last applied write | `/undo` |
 | `/cost` (`/c`) | Session tokens, cost, duration | `/cost` |
 | `/clear` | Clear chat + start a fresh session id | `/clear` |
@@ -734,7 +742,7 @@ CGO_ENABLED=0 go build -tags plainmd -ldflags="-s -w" -o codeforge ./cmd/codefor
 |------|---------|
 | `~/.config/codeforge/config.yaml` | Default provider, theme, git, permissions (example created on first run) |
 | `~/.codeforge/theme.yaml` | Optional color token overrides |
-| `~/.codeforge/sessions/*.json` | Saved conversations |
+| `~/.codeforge/sessions/<cwd>/<id>/` | Sessions (summary.json, chat_history.jsonl, rewind_points) |
 | `~/.codeforge/checkpoints/<session-id>/` | Pre-write file snapshots for `/undo` |
 
 Example `config.yaml` keys (see generated file for full template):
@@ -746,6 +754,8 @@ ui:
   compact_mode: false
   auto_dark_theme: groknight
   auto_light_theme: grokday
+session:
+  auto_compact_pct: 0.85   # auto /compact near context limit
 permissions:
   require_confirm_write: true   # Plan-style staging when true
   require_confirm_shell: true
@@ -792,8 +802,12 @@ Shift+P          # → ACT (writes immediate)
 ### 4. Resume yesterday’s session
 
 ```text
-/sessions
-/sessions 20260715-183022
+/resume
+/new
+/fork
+/rewind
+/compact
+/context
 ```
 
 ### 5. Offline / local model

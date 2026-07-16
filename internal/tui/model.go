@@ -24,6 +24,7 @@ import (
 	"github.com/codeforge/tui/internal/session"
 	"github.com/codeforge/tui/internal/theme"
 	"github.com/codeforge/tui/internal/tool"
+	"github.com/codeforge/tui/internal/tui/sessionpicker"
 	"github.com/codeforge/tui/internal/tui/slashmenu"
 	"github.com/codeforge/tui/internal/tui/themepicker"
 	"github.com/codeforge/tui/internal/ui/components"
@@ -61,9 +62,11 @@ type Model struct {
 	palette palette.Model
 	picker  filepicker.Model
 	review  review.Model
-	slash   slashmenu.Model
-	themes  themepicker.Model
-	toast   components.Toast
+	slash    slashmenu.Model
+	themes   themepicker.Model
+	sessions sessionpicker.Model
+	rewinds  sessionpicker.RewindModel
+	toast    components.Toast
 
 	streamCh <-chan provider.StreamToken
 	agentCh  <-chan agent.Event
@@ -110,6 +113,8 @@ const (
 	ModeFilePick
 	ModeReview
 	ModeThemePick
+	ModeSessionPick
+	ModeRewindPick
 )
 
 func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry, repo *git.Repo, workdir string) Model {
@@ -157,6 +162,8 @@ func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry,
 		review:      review.New(),
 		slash:       slashmenu.New(),
 		themes:      themepicker.New(),
+		sessions:    sessionpicker.New(),
+		rewinds:     sessionpicker.NewRewind(),
 		session:     sess,
 		ghClient:    ghc,
 		vimMode:     vim,
@@ -268,12 +275,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// ── Steal-Esc stack (Grok order) ─────────────
-		// 1) Review  2) Theme pick  3) Palette  4) File pick  5) Command  6) Slash  7) clear/rewind
+		// Review → Theme → Resume → Rewind → Palette → File → Command → Slash → clear/rewind
 		if m.mode == ModeReview {
 			return m.updateReview(msg)
 		}
 		if m.mode == ModeThemePick {
 			return m.updateThemePicker(msg)
+		}
+		if m.mode == ModeSessionPick {
+			return m.updateSessionPicker(msg)
+		}
+		if m.mode == ModeRewindPick {
+			return m.updateRewindPicker(msg)
 		}
 		if m.mode == ModePalette {
 			return m.updatePalette(msg)
@@ -385,7 +398,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.chat.AddSystemMessage("⛔ Budget exceeded — see /budget")
 					return m, nil
 				}
+				preview := inp
 				if c := m.chat.Submit(); c != nil {
+					m.recordTurnRewind(preview)
+					m.maybeAutoCompact()
 					cmds = append(cmds, c)
 					cmds = append(cmds, m.persistSessionCmd())
 				}
@@ -426,10 +442,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// ── SCROLLBACK focused ───────────────────────
 		switch msg.String() {
 		case "esc":
-			// double-esc with messages → rewind notice (Phase 4 full picker)
+			// double-esc with messages → rewind picker
 			now := time.Now()
 			if now.Sub(m.lastEsc) < 800*time.Millisecond && len(m.chat.messages) > 0 {
-				m.chat.AddSystemMessage("Rewind: use /undo for last write · full /rewind picker lands in Phase 4")
+				m.openRewindPicker()
 				m.lastEsc = time.Time{}
 				return m, nil
 			}
@@ -798,9 +814,9 @@ func (m *Model) handlePromptEsc() (tea.Model, tea.Cmd) {
 		m.toast = components.NewToast("Esc again to clear", "info", time.Second)
 		return *m, nil
 	}
-	// empty prompt
+	// empty prompt → double-esc opens rewind picker
 	if now.Sub(m.lastEsc) < 800*time.Millisecond && len(m.chat.messages) > 0 {
-		m.chat.AddSystemMessage("Rewind: /undo last write · full picker in Phase 4")
+		m.openRewindPicker()
 		m.lastEsc = time.Time{}
 		return *m, nil
 	}
@@ -828,11 +844,40 @@ func isImmediateSlash(cmd string) bool {
 	switch cmd {
 	case "/help", "/about", "/cost", "/budget", "/rules", "/index",
 		"/status", "/clear", "/quit", "/theme", "/compact-mode", "/vim-mode",
-		"/sessions", "/undo", "/push", "/pull":
+		"/sessions", "/resume", "/new", "/fork", "/rewind", "/compact",
+		"/context", "/session-info", "/undo", "/push", "/pull":
 		return true
 	default:
 		return false
 	}
+}
+
+func truncateStr(s string, n int) string {
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}
+
+func sessionSlugify(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else if b.Len() > 0 {
+			b.WriteByte('-')
+		}
+		if b.Len() >= 32 {
+			break
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if out == "" {
+		return "session"
+	}
+	return out
 }
 
 func (m *Model) openPalette() {
@@ -1218,6 +1263,13 @@ func (m Model) View() string {
 	case ModeThemePick:
 		m.themes.Width = m.width
 		parts = append(parts, m.themes.View())
+	case ModeSessionPick:
+		m.sessions.Width = m.width
+		m.sessions.Height = m.height
+		parts = append(parts, m.sessions.View())
+	case ModeRewindPick:
+		m.rewinds.Width = m.width
+		parts = append(parts, m.rewinds.View())
 	}
 
 	// Slash menu floats above composer
@@ -1295,6 +1347,227 @@ func (m *Model) openThemePicker() {
 	m.mode = ModeThemePick
 	m.focusPrompt = false
 	m.chat.BlurInput()
+}
+
+func (m *Model) openSessionPicker() {
+	m.slash.Close()
+	m.sessions.Open(m.workdir)
+	m.mode = ModeSessionPick
+	m.focusPrompt = false
+	m.chat.BlurInput()
+}
+
+func (m *Model) openRewindPicker() {
+	if m.session == nil {
+		m.chat.AddSystemMessage("No session for rewind")
+		return
+	}
+	pts, err := m.session.LoadRewindPoints()
+	if err != nil || len(pts) == 0 {
+		// synthesize from user messages if no recorded points
+		pts = synthesizeRewindPoints(m.chat.messages)
+	}
+	if len(pts) == 0 {
+		m.chat.AddSystemMessage("No rewind points yet — send a message first")
+		return
+	}
+	m.slash.Close()
+	m.rewinds.Open(pts)
+	m.mode = ModeRewindPick
+	m.focusPrompt = false
+	m.chat.BlurInput()
+}
+
+func synthesizeRewindPoints(msgs []provider.Message) []session.RewindPoint {
+	var pts []session.RewindPoint
+	for i, msg := range msgs {
+		if msg.Role != provider.RoleUser {
+			continue
+		}
+		pts = append(pts, session.RewindPoint{
+			ID:           fmt.Sprintf("synth-%d", i+1),
+			CreatedAt:    time.Now().Add(-time.Duration(len(msgs)-i) * time.Minute),
+			MessageIndex: i + 1,
+			Preview:      msg.Content,
+		})
+	}
+	return pts
+}
+
+func (m Model) updateSessionPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "ctrl+c":
+		m.sessions.Cancel()
+		m.mode = ModeInsert
+		m.focusPrompt = true
+		m.chat.FocusInput()
+		return m, nil
+	case "up", "k":
+		m.sessions.Move(-1)
+		return m, nil
+	case "down", "j":
+		m.sessions.Move(1)
+		return m, nil
+	case "backspace":
+		m.sessions.Backspace()
+		return m, nil
+	case "enter":
+		m.sessions.Confirm()
+		if m.sessions.Selected != nil {
+			m.applySession(m.sessions.Selected)
+		}
+		m.mode = ModeInsert
+		m.focusPrompt = true
+		m.chat.FocusInput()
+		return m, nil
+	default:
+		if msg.Type == tea.KeyRunes {
+			m.sessions.Type(string(msg.Runes))
+		}
+	}
+	return m, nil
+}
+
+func (m Model) updateRewindPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "ctrl+c":
+		m.rewinds.Cancel()
+		m.mode = ModeInsert
+		m.focusPrompt = true
+		m.chat.FocusInput()
+		return m, nil
+	case "up", "k":
+		m.rewinds.Move(-1)
+		return m, nil
+	case "down", "j":
+		m.rewinds.Move(1)
+		return m, nil
+	case "enter":
+		m.rewinds.Confirm()
+		if m.rewinds.Selected != nil {
+			m.applyRewind(*m.rewinds.Selected)
+		}
+		m.mode = ModeInsert
+		m.focusPrompt = true
+		m.chat.FocusInput()
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m *Model) applySession(s *session.Session) {
+	if s == nil {
+		return
+	}
+	m.saveSession() // persist current before switch
+	m.session = s
+	m.chat.LoadMessages(s.Messages)
+	m.totalCost = s.TotalCost
+	m.totalTokens = s.Tokens
+	if s.Provider != "" {
+		_ = m.providerReg.Switch(s.Provider)
+	}
+	if s.Model != "" {
+		if cur, err := m.providerReg.Current(); err == nil {
+			_ = cur.SetModel(s.Model)
+		}
+	}
+	m.chat.AddSystemMessage(fmt.Sprintf("✓ Resumed session %s", s.ID))
+	m.toast = components.NewToast("Session resumed", "success", 2*time.Second)
+}
+
+func (m *Model) applyRewind(pt session.RewindPoint) {
+	if m.session == nil {
+		return
+	}
+	// sync messages into session first
+	m.session.Messages = m.chat.messages
+	restored, err := m.session.ApplyRewind(pt)
+	if err != nil {
+		m.chat.AddSystemMessage("⚠ rewind: " + err.Error())
+		return
+	}
+	m.chat.LoadMessages(m.session.Messages)
+	m.totalTokens = m.session.Tokens
+	msg := fmt.Sprintf("✓ Rewound to %s (msg@%d)", pt.CreatedAt.Format("15:04:05"), pt.MessageIndex)
+	if len(restored) > 0 {
+		msg += fmt.Sprintf("\n  Restored %d file(s): %s", len(restored), strings.Join(restored, ", "))
+		for _, r := range restored {
+			m.context.MarkTouched(r)
+		}
+	}
+	m.chat.AddSystemMessage(msg)
+	m.toast = components.NewToast("Rewound", "success", 3*time.Second)
+}
+
+func (m *Model) startNewSession() {
+	m.saveSession()
+	m.chat.Clear()
+	prov, model := m.providerReg.CurrentName(), ""
+	if cur, err := m.providerReg.Current(); err == nil {
+		model = cur.Model()
+	}
+	m.session = session.New(prov, model, m.workdir)
+	m.totalCost = 0
+	m.totalTokens = 0
+	m.diff = NewDiffModel()
+	m.chat.AddSystemMessage("New session " + m.session.ID)
+	m.toast = components.NewToast("New session", "info", 2*time.Second)
+}
+
+func (m *Model) maxContextTokens() int {
+	if cur, err := m.providerReg.Current(); err == nil {
+		// try config providers
+		if m.cfg != nil {
+			if p, ok := m.cfg.Providers[m.providerReg.CurrentName()]; ok && p.Capabilities.MaxContext > 0 {
+				return p.Capabilities.MaxContext
+			}
+		}
+		_ = cur
+	}
+	if m.cfg != nil {
+		if p, ok := m.cfg.Providers[m.providerReg.CurrentName()]; ok && p.Capabilities.MaxContext > 0 {
+			return p.Capabilities.MaxContext
+		}
+	}
+	return 128000
+}
+
+func (m *Model) maybeAutoCompact() {
+	maxCtx := m.maxContextTokens()
+	pct := 0.85
+	if m.cfg != nil && m.cfg.Session.AutoCompactPct > 0 {
+		pct = m.cfg.Session.AutoCompactPct
+	}
+	tok := m.totalTokens
+	if tok == 0 {
+		tok = session.EstimateTokens(m.chat.messages)
+	}
+	if !session.ShouldAutoCompact(tok, maxCtx, pct) {
+		return
+	}
+	if m.session == nil {
+		return
+	}
+	m.session.Messages = m.chat.messages
+	res, err := m.session.Compact(6, "auto-compact at context threshold")
+	if err != nil {
+		return
+	}
+	m.chat.LoadMessages(m.session.Messages)
+	m.toast = components.NewToast(fmt.Sprintf("Auto-compact %d→%d msgs", res.BeforeMsgs, res.AfterMsgs), "info", 3*time.Second)
+}
+
+func (m *Model) recordTurnRewind(preview string) {
+	if m.session == nil {
+		return
+	}
+	m.session.Messages = m.chat.messages
+	turn := ""
+	if m.chat.store != nil {
+		turn = m.chat.store.CurrentTurn()
+	}
+	_, _ = m.session.RecordRewindPoint(preview, turn)
 }
 
 func paneName(p Pane) string {
@@ -1411,19 +1684,20 @@ func (m *Model) executeSlashCommand(input string) tea.Cmd {
 			}
 		}
 
-	case "sessions":
+	case "sessions", "dashboard":
+		// list text view (picker is /resume)
 		if len(args) == 0 {
-			list, err := session.List(15)
+			list, err := session.ListForWorkdir(m.workdir, 15)
 			if err != nil {
 				m.chat.AddSystemMessage("⚠ " + err.Error())
 				return nil
 			}
 			if len(list) == 0 {
-				m.chat.AddSystemMessage("Belum ada sesi tersimpan.")
+				m.chat.AddSystemMessage("No saved sessions. Use /resume or just chat.")
 				return nil
 			}
 			var sb strings.Builder
-			sb.WriteString("Sesi tersimpan (resume: /sessions <id>):\n")
+			sb.WriteString("Sessions (/resume picker · /sessions <id>):\n")
 			for _, s := range list {
 				sb.WriteString(fmt.Sprintf("  %s  %s\n    %s\n", s.ID, s.Slug, s.Preview))
 			}
@@ -1434,21 +1708,149 @@ func (m *Model) executeSlashCommand(input string) tea.Cmd {
 				m.chat.AddSystemMessage("⚠ " + err.Error())
 				return nil
 			}
-			m.session = s
-			m.chat.LoadMessages(s.Messages)
-			m.totalCost = s.TotalCost
-			m.totalTokens = s.Tokens
-			if s.Provider != "" {
-				_ = m.providerReg.Switch(s.Provider)
-			}
-			if s.Model != "" {
-				if cur, err := m.providerReg.Current(); err == nil {
-					_ = cur.SetModel(s.Model)
-				}
-			}
-			m.chat.AddSystemMessage(fmt.Sprintf("✓ Resumed session %s", s.ID))
-			m.toast = components.NewToast("Session resumed", "success", 2*time.Second)
+			m.applySession(s)
 		}
+
+	case "resume":
+		if len(args) == 0 {
+			m.openSessionPicker()
+			return nil
+		}
+		s, err := session.Load(args[0])
+		if err != nil {
+			m.chat.AddSystemMessage("⚠ " + err.Error())
+			return nil
+		}
+		m.applySession(s)
+
+	case "new":
+		m.startNewSession()
+
+	case "fork":
+		if m.session == nil {
+			m.chat.AddSystemMessage("No session to fork")
+			return nil
+		}
+		m.session.Messages = m.chat.messages
+		m.session.TotalCost = m.totalCost
+		m.session.Tokens = m.totalTokens
+		child, err := m.session.Fork()
+		if err != nil {
+			m.chat.AddSystemMessage("⚠ fork: " + err.Error())
+			return nil
+		}
+		// optional directive as first user note
+		if argStr != "" {
+			child.Messages = append(child.Messages, provider.Message{
+				Role: provider.RoleUser, Content: argStr,
+			})
+			_ = child.Save()
+		}
+		m.applySession(child)
+		m.chat.AddSystemMessage("Forked → " + child.ID + " (parent " + child.ParentID + ")")
+
+	case "rewind":
+		if len(args) == 0 {
+			m.openRewindPicker()
+			return nil
+		}
+		// /rewind last — last point
+		pts, err := m.session.LoadRewindPoints()
+		if err != nil || len(pts) == 0 {
+			pts = synthesizeRewindPoints(m.chat.messages)
+		}
+		if len(pts) == 0 {
+			m.chat.AddSystemMessage("No rewind points")
+			return nil
+		}
+		if strings.EqualFold(args[0], "last") {
+			m.applyRewind(pts[len(pts)-1])
+			return nil
+		}
+		// by index 1-based from newest
+		if n, err := strconv.Atoi(args[0]); err == nil && n > 0 {
+			// newest first numbering
+			idx := len(pts) - n
+			if idx >= 0 && idx < len(pts) {
+				m.applyRewind(pts[idx])
+				return nil
+			}
+		}
+		m.chat.AddSystemMessage("Usage: /rewind | /rewind last | /rewind <n>")
+
+	case "compact":
+		// conversation compact (not compact-mode UI)
+		if m.session == nil {
+			m.chat.AddSystemMessage("No session")
+			return nil
+		}
+		m.session.Messages = m.chat.messages
+		res, err := m.session.Compact(6, argStr)
+		if err != nil {
+			m.chat.AddSystemMessage("⚠ compact: " + err.Error())
+			return nil
+		}
+		m.chat.LoadMessages(m.session.Messages)
+		m.chat.AddSystemMessage(fmt.Sprintf("✓ Compacted %d → %d messages\n%s", res.BeforeMsgs, res.AfterMsgs, truncateStr(res.Summary, 200)))
+		m.toast = components.NewToast("Compacted", "success", 2*time.Second)
+
+	case "context", "ctx":
+		maxCtx := m.maxContextTokens()
+		tok := m.totalTokens
+		if tok == 0 {
+			tok = session.EstimateTokens(m.chat.messages)
+		}
+		pct := 0.0
+		if maxCtx > 0 {
+			pct = float64(tok) * 100 / float64(maxCtx)
+		}
+		users, assts, tools := 0, 0, 0
+		for _, msg := range m.chat.messages {
+			switch msg.Role {
+			case provider.RoleUser:
+				users++
+			case provider.RoleAssistant:
+				assts++
+			case provider.RoleTool:
+				tools++
+			}
+		}
+		m.chat.AddSystemMessage(fmt.Sprintf(
+			`Context window
+  Tokens   : %d / %d  (%.1f%%)
+  Messages : %d total (%d user · %d assistant · %d tool)
+  Cost     : $%.4f
+  Session  : %s
+
+  /compact to compress history · auto-compact at ~85%%`,
+			tok, maxCtx, pct, len(m.chat.messages), users, assts, tools,
+			m.totalCost, func() string {
+				if m.session != nil {
+					return m.session.ID
+				}
+				return "?"
+			}(),
+		))
+
+	case "session-info", "sessioninfo", "si":
+		if m.session == nil {
+			m.chat.AddSystemMessage("No session")
+			return nil
+		}
+		m.session.Messages = m.chat.messages
+		m.session.Tokens = m.totalTokens
+		m.session.TotalCost = m.totalCost
+		m.chat.AddSystemMessage(m.session.InfoText(m.maxContextTokens()))
+
+	case "rename", "title":
+		if m.session == nil || argStr == "" {
+			m.chat.AddSystemMessage("Usage: /rename <title>")
+			return nil
+		}
+		m.session.Title = argStr
+		m.session.Slug = sessionSlugify(argStr)
+		_ = m.session.Save()
+		m.chat.AddSystemMessage("Title → " + argStr)
 
 	case "undo":
 		if m.session == nil {
@@ -1610,7 +2012,7 @@ func (m *Model) executeSlashCommand(input string) tea.Cmd {
 		}
 		return nil
 
-	case "compact-mode", "compact":
+	case "compact-mode":
 		on := theme.ToggleCompact()
 		m.recalcSizes()
 		state := "off"
@@ -1674,9 +2076,14 @@ func (m *Model) executeSlashCommand(input string) tea.Cmd {
 		return m.chat.SubmitAgent("Baca file " + argStr + ", temukan bug atau error, lalu perbaiki")
 
 	case "clear":
+		// Grok: /clear clears chat in-place; /new rotates session id
 		m.chat.Clear()
 		m.diff = NewDiffModel()
-		m.session = session.New(m.providerReg.CurrentName(), "", m.workdir)
+		if m.session != nil {
+			m.session.Messages = nil
+			m.session.Preview = ""
+			_ = m.session.Save()
+		}
 
 	case "quit", "q", "exit":
 		m.saveSession()
@@ -2235,6 +2642,7 @@ var slashCommands = []string{
 	"/status", "/commit", "/push", "/pull", "/pr", "/issue", "/gh",
 	"/provider", "/model", "/mode", "/cost", "/budget", "/rules", "/index",
 	"/theme", "/compact-mode", "/vim-mode",
+	"/resume", "/new", "/fork", "/rewind", "/compact", "/context", "/session-info",
 	"/sessions", "/undo", "/clear", "/help", "/about", "/quit",
 }
 
@@ -2248,43 +2656,39 @@ func autocomplete(input string) string {
 }
 
 func helpText() string {
-	return `CodeForge · Grok-parity Phase 3  ·  v0.9.2
+	return `CodeForge · Grok-parity Phase 4  ·  v0.9.3
 
-FOCUS (steal-Esc order: overlay → slash → @ → clear/rewind)
+FOCUS
   Tab            Prompt ↔ scrollback
   Esc            Close menu / focus scrollback
-  2× Esc (800ms) Clear prompt (saves history) · or rewind hint
+  2× Esc (800ms) Clear prompt · or open /rewind picker
   Ctrl+C         Clear draft → cancel turn → quit
-  Type           Auto-focus prompt (simple mode)
 
-SCROLLBACK
-  ↑↓ / PgUp/Dn   Always
-  j/k h/l g/G e/E  When /vim-mode on
-  G              Follow-tail
-  Ctrl+B         Side panels
+SESSIONS
+  /resume        Full-screen session picker
+  /new           New session id (vs /clear = wipe chat)
+  /fork [note]   Branch conversation
+  /rewind        Restore files + truncate chat
+  /compact       Compress history (auto at ~85% context)
+  /context       Token breakdown
+  /session-info  Current session metadata
 
-INPUT
-  /              Slash menu (↑↓ Tab/Enter complete)
-  @              File picker · !hidden · path:10-50
-  Ctrl+K         Palette
-  Shift+Tab      Plan ↔ Act
-
-THEME & CHROME
-  /theme         Live-preview picker (↑↓ Enter Esc)
-  /theme NAME    groknight|grokday|tokyonight|rosepine|oscura|auto
-  /compact-mode  Tighter padding
-  --minimal      Terminal-native 16 colors, no chrome
+THEME
+  /theme         Live-preview picker
+  /compact-mode  Tighter UI padding
+  --minimal      Terminal-native 16 colors
 `
 }
 
 func aboutText() string {
-	return `CodeForge TUI v0.9.2
+	return `CodeForge TUI v0.9.3
 Created by NanoMind — 2026 — Apache 2.0
 
 Phase 1: block scrollback
-Phase 2: input fidelity (slash menu, @ ranges, steal-Esc, vim)
-Phase 3: GrokNight/Day · Tokyo · RosePine · Oscura · auto ·
-         /theme picker · quantize · OSC cursor · --minimal
+Phase 2: input fidelity
+Phase 3: themes + chrome
+Phase 4: sessions /resume /fork /rewind /compact
+  storage: ~/.codeforge/sessions/<cwd>/<id>/
 See docs/GROK_PARITY_ROADMAP.md
 `
 }

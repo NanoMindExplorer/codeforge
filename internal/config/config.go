@@ -22,6 +22,13 @@ type Config struct {
     Plugins         PluginsConfig       `mapstructure:"plugins"`
     Telemetry       TelemetryConfig     `mapstructure:"telemetry"`
     UI              UIConfig            `mapstructure:"ui"`
+    Session         SessionConfig       `mapstructure:"session"`
+}
+
+// SessionConfig controls session lifecycle (Phase 4).
+type SessionConfig struct {
+    // AutoCompactPct triggers /compact when tokens reach this fraction of max context (0–1).
+    AutoCompactPct float64 `mapstructure:"auto_compact_pct"`
 }
 
 // UIConfig matches Grok [ui] knobs used by CodeForge.
@@ -179,6 +186,9 @@ func Default() *Config {
             Theme:          "",
             AutoDarkTheme:  "groknight",
             AutoLightTheme: "grokday",
+        },
+        Session: SessionConfig{
+            AutoCompactPct: 0.85,
         },
     }
 }
