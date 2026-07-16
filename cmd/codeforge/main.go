@@ -4,7 +4,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -19,6 +18,7 @@ import (
 	"github.com/codeforge/tui/internal/app"
 	"github.com/codeforge/tui/internal/config"
 	"github.com/codeforge/tui/internal/headless"
+	"github.com/codeforge/tui/internal/onboarding"
 	"github.com/codeforge/tui/internal/session"
 	"github.com/codeforge/tui/internal/theme"
 	"github.com/codeforge/tui/internal/tui"
@@ -26,7 +26,7 @@ import (
 
 const (
 	ProjectName    = "CodeForge TUI"
-	ProjectVersion = "1.8.2"
+	ProjectVersion = "1.8.3"
 	ProjectAuthor  = "NanoMind"
 	ProjectYear    = "2026"
 	ProjectLicense = "Apache 2.0"
@@ -114,7 +114,7 @@ func runTUI(args []string) {
 		}
 	}
 
-	// Wizard before bootstrap if needed
+	// Wizard before bootstrap if needed (O1–O2)
 	cfg, _ := config.Load()
 	if cfg == nil {
 		cfg = config.Default()
@@ -127,8 +127,10 @@ func runTUI(args []string) {
 		}
 		theme.ApplyFromConfig(themeName, cfg.UI.CompactMode, cfg.UI.AutoDarkTheme, cfg.UI.AutoLightTheme)
 	}
-	if !skipWizard && needsWizardQuick() {
-		runWizard()
+	if skipWizard {
+		_ = onboarding.MarkSkipped()
+	} else if onboarding.NeedsWizard(false) {
+		_ = onboarding.RunWizard(onboarding.WizardOptions{})
 	}
 
 	rt, err := app.Bootstrap(app.Options{
@@ -391,52 +393,7 @@ func runSessionCLI(args []string) int {
 	}
 }
 
-func needsWizardQuick() bool {
-	if os.Getenv("XAI_API_KEY") != "" || os.Getenv("GROK_API_KEY") != "" ||
-		os.Getenv("GEMINI_API_KEY") != "" || os.Getenv("ANTHROPIC_API_KEY") != "" || os.Getenv("OPENAI_API_KEY") != "" {
-		return false
-	}
-	return true
-}
 
-func runWizard() {
-	r := bufio.NewReader(os.Stdin)
-	fmt.Println()
-	fmt.Println("╔══════════════════════════════════════════════════════╗")
-	fmt.Println("║  CodeForge — First Run Setup                         ║")
-	fmt.Println("╚══════════════════════════════════════════════════════╝")
-	fmt.Println()
-	fmt.Println("① API keys / GitHub:")
-	show := func(name, env string) {
-		if os.Getenv(env) != "" {
-			fmt.Printf("   ✓ %s\n", name)
-		} else {
-			fmt.Printf("   ○ %s — set %s\n", name, env)
-		}
-	}
-	show("Grok 4.5 (xAI)", "XAI_API_KEY")
-	show("Gemini", "GEMINI_API_KEY")
-	show("Claude", "ANTHROPIC_API_KEY")
-	show("OpenAI", "OPENAI_API_KEY")
-	show("GitHub token", "GITHUB_TOKEN")
-	fmt.Println("   Grok: https://console.x.ai/  ·  Gemini: https://aistudio.google.com/apikey")
-	fmt.Print("   Enter (paste XAI_ or GEMINI key): ")
-	line, _ := r.ReadString('\n')
-	line = strings.TrimSpace(line)
-	if strings.HasPrefix(line, "xai-") || strings.HasPrefix(line, "xai_") {
-		_ = os.Setenv("XAI_API_KEY", line)
-		fmt.Println("   ✓ XAI_API_KEY set for this session (Grok 4.5)")
-	} else if strings.HasPrefix(line, "AIza") || len(line) > 20 {
-		_ = os.Setenv("GEMINI_API_KEY", line)
-		fmt.Println("   ✓ GEMINI_API_KEY set for this session")
-	}
-	fmt.Println()
-	fmt.Println("② Headless CI mode:  codeforge agent --json \"fix tests\"")
-	fmt.Println("   Plugins dir:      ~/.codeforge/plugins/")
-	fmt.Println("   Sessions sync:    CODEFORGE_SESSIONS_DIR=/shared/path")
-	fmt.Print("   Enter to continue…")
-	_, _ = r.ReadString('\n')
-}
 
 func printBanner() {
 	fmt.Printf(`
@@ -502,7 +459,7 @@ func agentUsage() string {
   codeforge agent serve --bind 127.0.0.1:2419 --secret tok
 
 Flags:
-  --json, -j       Machine-readable JSON result (exit 1 on failure)
+  --json, -j       Machine-readable JSON result (exit 2=no_provider/auth, 1=runtime)
   --plan           Design/plan permission mode + staged writes
   --act            Apply writes immediately (default for one-shot)
   --always-approve, --yolo  Bypass ask (deny rules still apply)

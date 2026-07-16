@@ -188,7 +188,7 @@ func (c *ChatModel) Submit() tea.Cmd {
 			MaxTokens: 4096,
 			System:    c.systemWithRules(systemPrompt),
 		}
-		ch, err := p.Stream(ctx, req)
+		ch, _, err := provider.StreamRetryingReasoning(ctx, p, req)
 		if err != nil {
 			return errMsg{err: err}
 		}
@@ -390,6 +390,10 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			c.streaming = false
 			c.agentFull = ""
+		case agent.EventInfo:
+			if ev.Text != "" {
+				c.store.AddSystem(ev.Text)
+			}
 		case agent.EventError:
 			c.store.SealThinking()
 			c.store.SealAssistant()

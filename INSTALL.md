@@ -74,8 +74,22 @@ export OLLAMA_MODEL=llama3.2
 
 ## First-run wizard
 
-On first launch without a valid key, CodeForge shows a 3-step wizard  
-(keys → provider tip → keybindings). Skip with `--skip-wizard`.
+On first launch without a valid key, CodeForge shows the **setup wizard**  
+(provider pick → paste key → validate → default model). State is stored in  
+`~/.codeforge/onboarding.json` so the second launch does not re-prompt after skip/complete.
+
+Skip with `--skip-wizard` (or `/setup` later inside the TUI).
+
+### Key priority
+
+| Priority | When |
+|----------|------|
+| 1 | `XAI_API_KEY` / `GROK_API_KEY` → **grok** |
+| 2 | `GEMINI_API_KEY` → gemini |
+| 3 | `config.yaml` `default_provider` |
+| 4 | Other registered providers (claude / openai / ollama) |
+
+Override anytime: `/provider <name>`. Inspect sources: `/provider` (no args).
 
 ## Config
 

@@ -2,6 +2,26 @@
 
 All notable changes to CodeForge are documented here.
 
+## [1.8.3] — 2026-07-16
+
+### Onboarding (W2 / O1–O5)
+
+- `~/.codeforge/onboarding.json` tracks completed/skipped first-run (no wizard spam).
+- Wizard v2: pick provider → paste key (prefix detect) → ValidateConfig → default model → save config.
+- Footer strip: `⚠ no API key · /setup` until a provider validates.
+- `/setup` slash (re-run anytime): `/setup <provider> <key> [model]`.
+- `/provider` lists key source: `env:XAI_API_KEY` / `config` / `missing`.
+
+### Provider error UX (W2 / E4–E5)
+
+- Reasoning unsupported → one automatic retry with `Reasoning=off` + system notice (agent + stream).
+- Headless `--json`: structured `code` + `hint`; exit **2** for `no_provider` / `auth`.
+- ACP surfaces `FormatUserError` and `codeforge/error` session updates.
+
+### Dogfood
+
+- Batch B–C checklist: `docs/dogfood/BATCH_BC.md`.
+
 ## [1.8.2] — 2026-07-16
 
 ### Release automation (W1 / R1–R3)

@@ -21,6 +21,7 @@ import (
 	"github.com/codeforge/tui/internal/hooks"
 	"github.com/codeforge/tui/internal/index"
 	"github.com/codeforge/tui/internal/keymap"
+	"github.com/codeforge/tui/internal/onboarding"
 	"github.com/codeforge/tui/internal/permission"
 	"github.com/codeforge/tui/internal/provider"
 	"github.com/codeforge/tui/internal/rules"
@@ -1743,6 +1744,7 @@ func (m *Model) syncStatus() {
 	m.status.TodoBadge = todos.Global.Badge()
 	m.status.BgTasks = bgtask.Global.RunningCount()
 	m.status.Sandbox = sandbox.Global().Label()
+	m.status.NeedSetup = !onboarding.ProviderHealthy(m.providerReg)
 	// show running subagents alongside bg shell tasks
 	if n := tool.SubJobs.RunningCount(); n > 0 {
 		m.status.BgTasks += n
@@ -2223,22 +2225,85 @@ func (m *Model) executeSlashCommand(input string) tea.Cmd {
 	case "provider", "p":
 		if len(args) == 0 {
 			var sb strings.Builder
-			sb.WriteString("Provider tersedia:\n")
+			sb.WriteString("Providers:\n")
 			for _, name := range m.providerReg.List() {
 				mark := "  "
 				if name == m.providerReg.CurrentName() {
 					mark = "* "
 				}
-				sb.WriteString(fmt.Sprintf("  %s%s\n", mark, name))
+				src, ok := onboarding.KeySource(name)
+				if !ok && name != "ollama" {
+					src = "missing"
+				}
+				sb.WriteString(fmt.Sprintf("  %s%-8s  key: %s\n", mark, name, src))
 			}
-			sb.WriteString("\nGanti: /provider gemini | claude | openai | ollama")
+			sb.WriteString("\n")
+			sb.WriteString(onboarding.FormatKeySources())
+			sb.WriteString("\n\nSwitch: /provider grok|gemini|claude|openai|ollama")
 			m.chat.AddSystemMessage(sb.String())
 		} else {
 			if err := m.providerReg.Switch(args[0]); err != nil {
+				m.chat.AddSystemMessage("⚠ " + err.Error() + "\n  → /setup " + args[0] + " <api-key>")
+			} else {
+				src, _ := onboarding.KeySource(args[0])
+				m.chat.AddSystemMessage(fmt.Sprintf("✓ Provider: %s  (key: %s)", args[0], src))
+				m.toast = components.NewToast("Provider → "+args[0], "success", 2*time.Second)
+			}
+		}
+
+	case "setup":
+		// /setup | /setup <provider> | /setup <provider> <key> [model]
+		if len(args) == 0 {
+			var sb strings.Builder
+			sb.WriteString("Setup — configure API provider\n\n")
+			sb.WriteString(onboarding.FormatKeySources())
+			sb.WriteString("\n\nUsage:\n")
+			sb.WriteString("  /setup <provider> <api-key> [model]\n")
+			sb.WriteString("  /setup grok xai-…\n")
+			sb.WriteString("  /setup gemini AIza…\n")
+			sb.WriteString("  /setup ollama\n")
+			if onboarding.ProviderHealthy(m.providerReg) {
+				sb.WriteString("\nCurrent provider validates OK.")
+			} else {
+				sb.WriteString("\n⚠ No valid provider yet — paste a key with /setup.")
+			}
+			m.chat.AddSystemMessage(sb.String())
+		} else if len(args) == 1 && strings.ToLower(args[0]) == "ollama" {
+			if _, err := onboarding.ApplyKey(m.providerReg, "ollama", "", ""); err != nil {
 				m.chat.AddSystemMessage("⚠ " + err.Error())
 			} else {
-				m.chat.AddSystemMessage("✓ Provider: " + args[0])
-				m.toast = components.NewToast("Provider → "+args[0], "success", 2*time.Second)
+				m.chat.AddSystemMessage("✓ Ollama ready")
+				m.toast = components.NewToast("Ollama", "success", 2*time.Second)
+			}
+		} else if len(args) == 1 {
+			// provider name only — wait for key on next line is awkward; show paste form
+			name := strings.ToLower(args[0])
+			env := onboarding.EnvNameForProvider(name)
+			m.chat.AddSystemMessage(fmt.Sprintf(
+				"Paste key:\n  /setup %s <%s>\nOr export %s and restart.",
+				name, env, env,
+			))
+		} else {
+			name := strings.ToLower(args[0])
+			key := args[1]
+			model := ""
+			if len(args) >= 3 {
+				model = strings.Join(args[2:], " ")
+			}
+			if det := onboarding.DetectProviderFromKey(key); det != "" {
+				name = det
+			}
+			p, err := onboarding.ApplyKey(m.providerReg, name, key, model)
+			if err != nil {
+				m.chat.AddSystemMessage(provider.FormatUserError(err))
+			} else {
+				src, _ := onboarding.KeySource(name)
+				m.chat.AddSystemMessage(fmt.Sprintf("✓ %s ready · model %s · key %s", name, p.Model(), src))
+				m.toast = components.NewToast("Setup OK · "+name, "success", 3*time.Second)
+				if m.session != nil {
+					m.session.Provider = name
+					m.session.Model = p.Model()
+				}
 			}
 		}
 
@@ -3634,7 +3699,7 @@ func modeString(m Mode) string {
 var slashCommands = []string{
 	"/act", "/read", "/ls", "/grep", "/run", "/explain", "/fix",
 	"/status", "/commit", "/push", "/pull", "/pr", "/issue", "/gh",
-	"/provider", "/model", "/mode", "/cost", "/budget", "/rules", "/index",
+	"/provider", "/setup", "/model", "/mode", "/cost", "/budget", "/rules", "/index",
 	"/theme", "/compact-mode", "/vim-mode",
 	"/resume", "/new", "/rename", "/fork", "/rewind", "/compact", "/context", "/session-info",
 	"/mode", "/plan", "/view-plan", "/permissions", "/sandbox", "/pager", "/hooks",
@@ -3661,6 +3726,7 @@ MODES
   Shift+Tab      BUILD → DESIGN → YOLO
 
 PRODUCT
+  /setup /provider /model · key sources shown on /provider
   /resume /new /fork /rewind /compact /context
   /plan /todos /tasks /subagents /memory /skills /personas /settings
   /theme /permissions /sandbox /hooks /vim-mode /compact-mode
@@ -3673,7 +3739,7 @@ AGENT / IDE
 }
 
 func aboutText() string {
-	return `CodeForge TUI v1.8.2
+	return `CodeForge TUI v1.8.3
 Created by NanoMind — 2026 — Apache 2.0
 
 Grok Build TUI–compatible (Phases 1–9 + G1–G10):

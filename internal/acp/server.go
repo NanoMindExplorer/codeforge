@@ -89,7 +89,7 @@ type acpSession struct {
 // NewServer creates an ACP server (transport set via SetTransport).
 func NewServer(opt Options) *Server {
 	if opt.Version == "" {
-		opt.Version = "1.8.2"
+		opt.Version = "1.8.3"
 	}
 	if opt.MaxIter <= 0 {
 		opt.MaxIter = 12
@@ -394,15 +394,33 @@ func (s *Server) doSessionPrompt(req Request) {
 				asst.WriteString(ev.Text)
 			case agent.EventDone:
 				// ok
+			case agent.EventInfo:
+				if ev.Text != "" {
+					s.notifyUpdate(p.SessionID, map[string]any{
+						"sessionUpdate": "agent_message_chunk",
+						"content":       map[string]any{"type": "text", "text": "\n" + ev.Text},
+					})
+				}
 			case agent.EventError:
 				if ctx.Err() != nil {
 					stop = StopCancelled
 				} else {
-					// still end turn; surface error as message chunk
+					// still end turn; surface friendly provider error
+					msg := provider.FormatUserError(ev.Error)
 					s.notifyUpdate(p.SessionID, map[string]any{
 						"sessionUpdate": "agent_message_chunk",
-						"content":       map[string]any{"type": "text", "text": "\n⚠ " + ev.Error.Error()},
+						"content":       map[string]any{"type": "text", "text": "\n" + msg},
 					})
+					// structured code for IDE clients
+					if pe, ok := provider.AsProviderError(ev.Error); ok && pe != nil {
+						s.notifyUpdate(p.SessionID, map[string]any{
+							"sessionUpdate": "codeforge/error",
+							"code":          string(pe.Code),
+							"message":       pe.Message,
+							"hint":          pe.Hint,
+							"retry":         pe.Retry,
+						})
+					}
 				}
 			}
 		}

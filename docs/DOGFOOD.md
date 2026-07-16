@@ -3,6 +3,7 @@
 Use this side-by-side with Grok Build TUI for a day of real work. Mark each item when CodeForge feels “good enough.”
 
 **Daily log:** copy [`docs/dogfood/TEMPLATE.md`](./dogfood/TEMPLATE.md) → `docs/dogfood/YYYY-MM-DD.md` and fill it after each session.  
+**Batch B–C (session + safety):** [`docs/dogfood/BATCH_BC.md`](./dogfood/BATCH_BC.md)  
 **Local helper:** `make dogfood-help`
 
 ## Core coding loop

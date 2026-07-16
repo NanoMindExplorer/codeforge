@@ -44,6 +44,10 @@ type Result struct {
 	OK           bool              `json:"ok"`
 	Text         string            `json:"text"`
 	Error        string            `json:"error,omitempty"`
+	// Code is a stable machine code (auth, rate_limit, no_provider, …).
+	Code string `json:"code,omitempty"`
+	// Hint is an actionable next step for operators/CI.
+	Hint         string            `json:"hint,omitempty"`
 	ToolCalls    int               `json:"tool_calls"`
 	Tools        []string          `json:"tools,omitempty"`
 	InputTokens  int               `json:"input_tokens,omitempty"`
@@ -69,8 +73,22 @@ type EventRecord struct {
 // Run executes the agent and writes human or JSON output to w.
 func Run(opt Options, w io.Writer) (Result, error) {
 	start := time.Now()
+	writeFail := func(res Result, err error) (Result, error) {
+		res.DurationMs = time.Since(start).Milliseconds()
+		if opt.JSON {
+			enc := json.NewEncoder(w)
+			enc.SetIndent("", "  ")
+			_ = enc.Encode(res)
+		} else if !opt.Quiet {
+			fmt.Fprintln(w, provider.FormatUserError(err))
+			if res.Hint != "" {
+				fmt.Fprintf(w, "  → %s\n", res.Hint)
+			}
+		}
+		return res, err
+	}
 	if strings.TrimSpace(opt.Task) == "" {
-		return Result{OK: false, Error: "task required"}, fmt.Errorf("task required")
+		return writeFail(Result{OK: false, Error: "task required", Code: "invalid"}, fmt.Errorf("task required"))
 	}
 	if opt.Timeout <= 0 {
 		opt.Timeout = 10 * time.Minute
@@ -89,7 +107,7 @@ func Run(opt Options, w io.Writer) (Result, error) {
 		SandboxFlagSet: opt.SandboxFlagSet,
 	})
 	if err != nil {
-		return Result{OK: false, Error: err.Error()}, err
+		return writeFail(Result{OK: false, Error: err.Error(), Code: "boot"}, err)
 	}
 	if rt.Tele != nil {
 		rt.Tele.Event("headless_agent", map[string]any{"json": opt.JSON})
@@ -98,15 +116,20 @@ func Run(opt Options, w io.Writer) (Result, error) {
 
 	p, err := rt.ProvReg.Current()
 	if err != nil {
-		return Result{OK: false, Error: err.Error()}, err
+		return writeFail(failResult("no_provider", "No AI provider configured",
+			"Set XAI_API_KEY / GEMINI_API_KEY or run codeforge TUI /setup", err), err)
+	}
+	if err := p.ValidateConfig(); err != nil {
+		pe := provider.Classify(err, 0, err.Error(), rt.ProvReg.CurrentName())
+		return writeFail(Result{
+			OK: false, Error: pe.Message, Code: string(pe.Code), Hint: pe.Hint,
+		}, err)
 	}
 	if opt.Model != "" {
 		if err := p.SetModel(opt.Model); err != nil {
-			return Result{OK: false, Error: "model: " + err.Error()}, err
+			return writeFail(Result{OK: false, Error: "model: " + err.Error(), Code: "model",
+				Hint: "Pick a valid id with --model or /model"}, err)
 		}
-	}
-	if err := p.ValidateConfig(); err != nil {
-		return Result{OK: false, Error: err.Error()}, err
 	}
 
 	sys := `You are CodeForge headless agent (CI/scripts). Be concise and complete the task.
@@ -226,7 +249,15 @@ Reply with a clear summary of what you did.`
 		SessionID:    sess.ID,
 	}
 	if lastErr != nil {
-		res.Error = lastErr.Error()
+		pe, _ := provider.AsProviderError(lastErr)
+		if pe != nil {
+			res.Error = pe.Message
+			res.Code = string(pe.Code)
+			res.Hint = pe.Hint
+		} else {
+			res.Error = lastErr.Error()
+			res.Code = "unknown"
+		}
 	}
 	if opt.JSON {
 		res.Events = events
@@ -238,7 +269,7 @@ Reply with a clear summary of what you did.`
 			fmt.Fprintln(w)
 		}
 		if lastErr != nil {
-			fmt.Fprintf(w, "\n⚠ agent error: %v\n", lastErr)
+			fmt.Fprintf(w, "\n%s\n", provider.FormatUserError(lastErr))
 		}
 		fmt.Fprintf(w, "\n— done in %dms · tools=%d · tokens in/out=%d/%d · session=%s\n",
 			res.DurationMs, res.ToolCalls, res.InputTokens, res.OutputTokens, sess.ID)
@@ -251,12 +282,29 @@ Reply with a clear summary of what you did.`
 }
 
 // RunCLI is a convenience that prints to stdout and sets exit-friendly error.
+// Exit 2 = configuration (no_provider / auth); 1 = runtime failure; 0 = ok.
 func RunCLI(opt Options) int {
 	res, err := Run(opt, os.Stdout)
 	if err != nil || !res.OK {
+		if res.Code == "no_provider" || res.Code == "auth" {
+			// ensure JSON already printed by Run when --json
+			if !opt.JSON {
+				_ = json.NewEncoder(os.Stderr).Encode(map[string]any{
+					"ok": false, "code": res.Code, "error": res.Error, "hint": res.Hint,
+				})
+			}
+			return 2
+		}
 		return 1
 	}
 	return 0
+}
+
+func failResult(code, msg, hint string, err error) Result {
+	if msg == "" && err != nil {
+		msg = err.Error()
+	}
+	return Result{OK: false, Error: msg, Code: code, Hint: hint}
 }
 
 func trim(s string, n int) string {

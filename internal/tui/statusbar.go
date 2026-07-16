@@ -35,6 +35,8 @@ type StatusBarModel struct {
 	BgTasks    int    // running background tasks
 	// Phase G4
 	Sandbox string // e.g. "SBX:ws" or empty
+	// W2 O3: true when no valid provider key — footer shows /setup hint
+	NeedSetup bool
 }
 
 func NewStatusBarModel() StatusBarModel {
@@ -116,7 +118,11 @@ func (s StatusBarModel) ViewFooter() string {
 		sbx = lipgloss.NewStyle().Foreground(t.Warning).Render(s.Sandbox) + "  "
 	}
 
-	left := lipgloss.JoinHorizontal(lipgloss.Left, mode, " ", agent, "  ", model, "  ", git)
+	setup := ""
+	if s.NeedSetup {
+		setup = lipgloss.NewStyle().Foreground(t.Danger).Bold(true).Render("⚠ no API key · /setup") + "  "
+	}
+	left := lipgloss.JoinHorizontal(lipgloss.Left, mode, " ", agent, "  ", model, "  ", setup, git)
 	right := lipgloss.JoinHorizontal(lipgloss.Right, todo, bg, sbx, spark, "  ", cost, "  ", themeN, "  ", clock)
 
 	pad := s.width - lipgloss.Width(left) - lipgloss.Width(right) - 2

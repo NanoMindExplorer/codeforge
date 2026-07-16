@@ -4,6 +4,7 @@ import (
     "fmt"
     "os"
     "path/filepath"
+    "strings"
 
     "github.com/spf13/viper"
 )
@@ -377,6 +378,94 @@ func Load() (*Config, error) {
     fillKey("grok", "XAI_API_KEY", "GROK_API_KEY")
     fillKey("xai", "XAI_API_KEY", "GROK_API_KEY")
     return cfg, nil
+}
+
+// SaveProviderKey writes/updates providers.<name>.api_key (and optional model) in config.yaml.
+func SaveProviderKey(name, apiKey, model string) error {
+    name = strings.ToLower(strings.TrimSpace(name))
+    if name == "xai" {
+        name = "grok"
+    }
+    if name == "" || strings.TrimSpace(apiKey) == "" {
+        return fmt.Errorf("provider and api key required")
+    }
+    cfg, err := Load()
+    if err != nil || cfg == nil {
+        cfg = Default()
+    }
+    if cfg.Providers == nil {
+        cfg.Providers = map[string]Provider{}
+    }
+    p := cfg.Providers[name]
+    p.Enabled = true
+    p.APIKey = strings.TrimSpace(apiKey)
+    if model != "" {
+        p.DefaultModel = model
+    }
+    if p.Type == "" {
+        switch name {
+        case "grok":
+            p.Type = "xai"
+        case "claude":
+            p.Type = "anthropic"
+        default:
+            p.Type = name
+        }
+    }
+    cfg.Providers[name] = p
+    return writeConfig(cfg)
+}
+
+// SaveDefaultProvider sets default_provider in config.yaml.
+func SaveDefaultProvider(name string) error {
+    name = strings.ToLower(strings.TrimSpace(name))
+    if name == "" {
+        return fmt.Errorf("provider name required")
+    }
+    cfg, err := Load()
+    if err != nil || cfg == nil {
+        cfg = Default()
+    }
+    cfg.DefaultProvider = name
+    return writeConfig(cfg)
+}
+
+func writeConfig(cfg *Config) error {
+    cfgDir, err := ConfigDir()
+    if err != nil {
+        return err
+    }
+    if err := os.MkdirAll(cfgDir, 0755); err != nil {
+        return err
+    }
+    path := filepath.Join(cfgDir, "config.yaml")
+    // Merge carefully: load existing file as viper map if present
+    v := viper.New()
+    v.SetConfigType("yaml")
+    v.SetConfigFile(path)
+    _ = v.ReadInConfig() // ignore missing
+
+    v.Set("default_provider", cfg.DefaultProvider)
+    if cfg.Theme != "" {
+        v.Set("theme", cfg.Theme)
+    }
+    for name, p := range cfg.Providers {
+        prefix := "providers." + name
+        v.Set(prefix+".enabled", p.Enabled)
+        if p.Type != "" {
+            v.Set(prefix+".type", p.Type)
+        }
+        if p.APIKey != "" {
+            v.Set(prefix+".api_key", p.APIKey)
+        }
+        if p.DefaultModel != "" {
+            v.Set(prefix+".default_model", p.DefaultModel)
+        }
+        if p.Endpoint != "" {
+            v.Set(prefix+".endpoint", p.Endpoint)
+        }
+    }
+    return v.WriteConfigAs(path)
 }
 
 func SaveExample() error {

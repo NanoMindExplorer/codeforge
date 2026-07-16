@@ -30,6 +30,8 @@ const (
 	EventToolProgress
 	EventDone
 	EventError
+	// EventInfo is a non-fatal system notice (e.g. reasoning auto-retry).
+	EventInfo
 )
 
 type Event struct {
@@ -114,7 +116,8 @@ func runLoop(ctx context.Context, cfg Config, history []provider.Message, out ch
 			Tools:       toolDefs,
 		}
 
-		resp, err := cfg.Provider.Complete(ctx, req)
+		// E4: if model rejects thinking params, retry once with Reasoning=off.
+		resp, retried, err := provider.CompleteRetryingReasoning(ctx, cfg.Provider, req)
 		if err != nil {
 			if ctx.Err() != nil {
 				out <- Event{Kind: EventDone}
@@ -122,6 +125,9 @@ func runLoop(ctx context.Context, cfg Config, history []provider.Message, out ch
 			}
 			out <- Event{Kind: EventError, Error: err}
 			return
+		}
+		if retried {
+			out <- Event{Kind: EventInfo, Text: "↻ Model rejected reasoning/thinking — continued without thinking"}
 		}
 
 		if strings.TrimSpace(resp.Reasoning) != "" {
