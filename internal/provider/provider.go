@@ -4,6 +4,8 @@ import (
     "context"
     "errors"
     "fmt"
+    "os"
+    "strings"
 )
 
 // Role constants for provider.Message.Role.
@@ -46,23 +48,55 @@ type CompletionRequest struct {
     Temperature float64          `json:"temperature,omitempty"`
     System      string           `json:"system,omitempty"`
     Tools       []ToolDefinition `json:"tools,omitempty"`
+    // Reasoning enables native thinking/reasoning streams when the provider supports it.
+    // Empty = auto (on for known reasoning models). "off" | "low" | "medium" | "high" | "on".
+    Reasoning string `json:"reasoning,omitempty"`
 }
 
 type CompletionResponse struct {
     Content      string     `json:"content"`
+    // Reasoning is native chain-of-thought / thinking text (not shown as assistant content).
+    Reasoning    string     `json:"reasoning,omitempty"`
     ToolCalls    []ToolCall `json:"tool_calls,omitempty"`
     InputTokens  int        `json:"input_tokens"`
     OutputTokens int        `json:"output_tokens"`
-    StopReason   string     `json:"stop_reason"`
+    // ReasoningTokens when the API reports a separate count.
+    ReasoningTokens int    `json:"reasoning_tokens,omitempty"`
+    StopReason      string `json:"stop_reason"`
 }
 
 type StreamToken struct {
-    Text         string    `json:"text,omitempty"`
-    ToolCall     *ToolCall `json:"tool_call,omitempty"`
-    Done         bool      `json:"done"`
-    Error        error     `json:"-"`
-    InputTokens  int       `json:"input_tokens,omitempty"`
-    OutputTokens int       `json:"output_tokens,omitempty"`
+    Text string `json:"text,omitempty"`
+    // Reasoning is a native thinking/reasoning delta (Grok/OpenAI/Gemini/Claude).
+    Reasoning string    `json:"reasoning,omitempty"`
+    ToolCall  *ToolCall `json:"tool_call,omitempty"`
+    Done      bool      `json:"done"`
+    Error     error     `json:"-"`
+    InputTokens     int `json:"input_tokens,omitempty"`
+    OutputTokens    int `json:"output_tokens,omitempty"`
+    ReasoningTokens int `json:"reasoning_tokens,omitempty"`
+}
+
+// WantsReasoning reports whether the request should ask the model for thinking tokens.
+func (r CompletionRequest) WantsReasoning(modelID string) bool {
+    switch strings.ToLower(strings.TrimSpace(r.Reasoning)) {
+    case "off", "none", "false", "0":
+        return false
+    case "on", "true", "1", "low", "medium", "high", "max":
+        return true
+    }
+    // auto: enable for known reasoning-capable model families
+    m := strings.ToLower(modelID)
+    for _, p := range []string{"grok", "o1", "o3", "o4", "reason", "think", "r1", "gemini-2.5", "gemini-3", "claude"} {
+        if strings.Contains(m, p) {
+            return true
+        }
+    }
+    // env override
+    if v := strings.ToLower(strings.TrimSpace(os.Getenv("CODEFORGE_REASONING"))); v != "" {
+        return v != "0" && v != "off" && v != "false"
+    }
+    return false
 }
 
 type Provider interface {

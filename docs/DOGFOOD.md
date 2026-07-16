@@ -68,7 +68,6 @@ Use this side-by-side with Grok Build TUI for a day of real work. Mark each item
 ## Honest remaining gaps (Could)
 
 - Landlock/Seatbelt best-effort on restricted kernels/containers (see process=none in status)  
-- Provider reasoning streams as real thought tokens — synthetic thinking OK  
 - Full Grok welcome screen / pager.toml matrix — partial  
 - Grok.com billing/OAuth — out of scope  
 

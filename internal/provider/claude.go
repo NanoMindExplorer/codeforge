@@ -147,8 +147,29 @@ func (p *ClaudeProvider) Complete(ctx context.Context, req CompletionRequest) (*
     if req.System != "" {
         anthropicReq.System = req.System
     }
-    if req.Temperature > 0 {
+    // Temperature is incompatible with extended thinking on some models — skip when reasoning on.
+    if req.Temperature > 0 && !req.WantsReasoning(model) {
         anthropicReq.SetTemperature(float32(req.Temperature))
+    }
+    if req.WantsReasoning(model) {
+        budget := 4096
+        if maxTokens > 8192 {
+            budget = 8192
+        }
+        if budget >= maxTokens {
+            budget = maxTokens / 2
+        }
+        if budget < 1024 {
+            budget = 1024
+            if maxTokens <= 1024 {
+                maxTokens = 2048
+                anthropicReq.MaxTokens = maxTokens
+            }
+        }
+        anthropicReq.Thinking = &anthropic.Thinking{
+            Type:         anthropic.ThinkingTypeEnabled,
+            BudgetTokens: budget,
+        }
     }
     resp, err := p.client.CreateMessages(ctx, anthropicReq)
     if err != nil {
@@ -163,6 +184,10 @@ func (p *ClaudeProvider) Complete(ctx context.Context, req CompletionRequest) (*
         switch content.Type {
         case anthropic.MessagesContentTypeText:
             result.Content += content.GetText()
+        case anthropic.MessagesContentTypeThinking:
+            if content.MessageContentThinking != nil {
+                result.Reasoning += content.MessageContentThinking.Thinking
+            }
         case anthropic.MessagesContentTypeToolUse:
             if content.MessageContentToolUse != nil {
                 result.ToolCalls = append(result.ToolCalls, ToolCall{
@@ -200,8 +225,24 @@ func (p *ClaudeProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
     if req.System != "" {
         anthropicReq.System = req.System
     }
-    if req.Temperature > 0 {
+    if req.Temperature > 0 && !req.WantsReasoning(model) {
         anthropicReq.SetTemperature(float32(req.Temperature))
+    }
+    if req.WantsReasoning(model) {
+        budget := 4096
+        if budget >= maxTokens {
+            budget = maxTokens / 2
+        }
+        if budget < 1024 {
+            budget = 1024
+            if maxTokens <= 1024 {
+                anthropicReq.MaxTokens = 2048
+            }
+        }
+        anthropicReq.Thinking = &anthropic.Thinking{
+            Type:         anthropic.ThinkingTypeEnabled,
+            BudgetTokens: budget,
+        }
     }
     out := make(chan StreamToken, 100)
     go func() {
@@ -210,6 +251,11 @@ func (p *ClaudeProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
         streamReq := anthropic.MessagesStreamRequest{
             MessagesRequest: anthropicReq,
             OnContentBlockDelta: func(data anthropic.MessagesEventContentBlockDeltaData) {
+                // thinking_delta
+                if data.Delta.MessageContentThinking != nil && data.Delta.MessageContentThinking.Thinking != "" {
+                    out <- StreamToken{Reasoning: data.Delta.MessageContentThinking.Thinking}
+                    return
+                }
                 if text := data.Delta.GetText(); text != "" {
                     out <- StreamToken{Text: text}
                 }

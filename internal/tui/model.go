@@ -654,9 +654,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StreamOpenedMsg:
 		m.streamCh = msg.Ch
 		nc, c := m.chat.Update(StreamTickMsg{
-			Text: msg.FirstToken.Text, Done: msg.FirstToken.Done,
+			Text: msg.FirstToken.Text, Reasoning: msg.FirstToken.Reasoning, Done: msg.FirstToken.Done,
 			InputTokens: msg.FirstToken.InputTokens, OutputTokens: msg.FirstToken.OutputTokens,
-			Error: msg.FirstToken.Error,
+			ReasoningTokens: msg.FirstToken.ReasoningTokens,
+			Error:          msg.FirstToken.Error,
 		})
 		m.chat = nc.(ChatModel)
 		if c != nil {
@@ -3490,11 +3491,13 @@ type StreamOpenedMsg struct {
 }
 
 type StreamTickMsg struct {
-	Text         string
-	Done         bool
-	InputTokens  int
-	OutputTokens int
-	Error        error
+	Text            string
+	Reasoning       string
+	Done            bool
+	InputTokens     int
+	OutputTokens    int
+	ReasoningTokens int
+	Error           error
 }
 
 type AgentOpenedMsg struct {
@@ -3548,9 +3551,10 @@ func pumpStream(ch <-chan provider.StreamToken) tea.Cmd {
 			return StreamTickMsg{Done: true}
 		}
 		return StreamTickMsg{
-			Text: tok.Text, Done: tok.Done,
+			Text: tok.Text, Reasoning: tok.Reasoning, Done: tok.Done,
 			InputTokens: tok.InputTokens, OutputTokens: tok.OutputTokens,
-			Error: tok.Error,
+			ReasoningTokens: tok.ReasoningTokens,
+			Error:          tok.Error,
 		}
 	}
 }
@@ -3638,15 +3642,15 @@ AGENT / IDE
 }
 
 func aboutText() string {
-	return `CodeForge TUI v1.6.0
+	return `CodeForge TUI v1.7.0
 Created by NanoMind — 2026 — Apache 2.0
 
-Grok Build TUI–compatible (Phases 1–9 + G1–G8):
+Grok Build TUI–compatible (Phases 1–9 + G1–G8 + reasoning streams):
   blocks · input · themes · sessions · design plan
   permissions/hooks · todos/tasks · ACP + x.ai/* extensions
-  Grok 4.5 · tools · Landlock/Seatbelt · skills · personas
+  Grok 4.5 · native thinking tokens · Landlock · skills · personas
   background subagents · disk-persisted jobs · resume_from
-See docs/ACP.md · docs/SUBAGENTS.md · docs/SANDBOX.md
+See docs/REASONING.md · docs/ACP.md · docs/SANDBOX.md
 `
 }
 

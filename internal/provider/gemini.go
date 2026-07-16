@@ -27,6 +27,8 @@ type geminiContent struct {
 
 type geminiPart struct {
     Text             string                   `json:"text,omitempty"`
+    // Thought marks native Gemini thinking parts (includeThoughts).
+    Thought          bool                     `json:"thought,omitempty"`
     FunctionCall     *geminiFunctionCall      `json:"functionCall,omitempty"`
     FunctionResponse *geminiFunctionResponse  `json:"functionResponse,omitempty"`
 }
@@ -61,6 +63,14 @@ type geminiRequest struct {
 type geminiGenConfig struct {
     MaxOutputTokens int     `json:"maxOutputTokens,omitempty"`
     Temperature     float64 `json:"temperature,omitempty"`
+    // ThinkingConfig requests native thought summaries (Gemini 2.5+).
+    ThinkingConfig *geminiThinkingConfig `json:"thinkingConfig,omitempty"`
+}
+
+type geminiThinkingConfig struct {
+    IncludeThoughts bool `json:"includeThoughts,omitempty"`
+    // ThinkingBudget optional token budget (0 = model default).
+    ThinkingBudget int `json:"thinkingBudget,omitempty"`
 }
 
 type geminiResponse struct {
@@ -204,13 +214,17 @@ func (p *GeminiProvider) Complete(ctx context.Context, req CompletionRequest) (*
         maxTokens = 8192
     }
 
+    gen := &geminiGenConfig{
+        MaxOutputTokens: maxTokens,
+        Temperature:     req.Temperature,
+    }
+    if req.WantsReasoning(model) {
+        gen.ThinkingConfig = &geminiThinkingConfig{IncludeThoughts: true}
+    }
     gReq := geminiRequest{
-        Contents: toGeminiContents(req.Messages),
-        GenerationConfig: &geminiGenConfig{
-            MaxOutputTokens: maxTokens,
-            Temperature:     req.Temperature,
-        },
-        Tools: toGeminiTools(req.Tools),
+        Contents:         toGeminiContents(req.Messages),
+        GenerationConfig: gen,
+        Tools:            toGeminiTools(req.Tools),
     }
     if req.System != "" {
         gReq.SystemInstruction = &geminiContent{
@@ -253,7 +267,11 @@ func (p *GeminiProvider) Complete(ctx context.Context, req CompletionRequest) (*
     for _, cand := range gResp.Candidates {
         for i, part := range cand.Content.Parts {
             if part.Text != "" {
-                result.Content += part.Text
+                if part.Thought {
+                    result.Reasoning += part.Text
+                } else {
+                    result.Content += part.Text
+                }
             }
             if part.FunctionCall != nil {
                 argsJSON, _ := json.Marshal(part.FunctionCall.Args)
@@ -287,12 +305,16 @@ func (p *GeminiProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
         maxTokens = 8192
     }
 
+    gen := &geminiGenConfig{
+        MaxOutputTokens: maxTokens,
+        Temperature:     req.Temperature,
+    }
+    if req.WantsReasoning(model) {
+        gen.ThinkingConfig = &geminiThinkingConfig{IncludeThoughts: true}
+    }
     gReq := geminiRequest{
-        Contents: toGeminiContents(req.Messages),
-        GenerationConfig: &geminiGenConfig{
-            MaxOutputTokens: maxTokens,
-            Temperature:     req.Temperature,
-        },
+        Contents:         toGeminiContents(req.Messages),
+        GenerationConfig: gen,
     }
     if req.System != "" {
         gReq.SystemInstruction = &geminiContent{
@@ -359,10 +381,15 @@ func (p *GeminiProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
                 }
                 return
             }
-            // Stream text chunks
+            // Stream text / thought chunks
             for _, cand := range chunk.Candidates {
                 for _, part := range cand.Content.Parts {
-                    if part.Text != "" {
+                    if part.Text == "" {
+                        continue
+                    }
+                    if part.Thought {
+                        out <- StreamToken{Reasoning: part.Text}
+                    } else {
                         out <- StreamToken{Text: part.Text}
                     }
                 }

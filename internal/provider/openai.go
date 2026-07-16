@@ -85,9 +85,12 @@ func (p *OpenAIProvider) ValidateConfig() error {
 type oaiMsg struct {
 	Role       string        `json:"role"`
 	Content    string        `json:"content,omitempty"`
-	ToolCalls  []oaiToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string        `json:"tool_call_id,omitempty"`
-	Name       string        `json:"name,omitempty"`
+	// ReasoningContent is used by DeepSeek-R1 / some xAI / OpenAI reasoning models.
+	ReasoningContent string        `json:"reasoning_content,omitempty"`
+	Reasoning        string        `json:"reasoning,omitempty"`
+	ToolCalls        []oaiToolCall `json:"tool_calls,omitempty"`
+	ToolCallID       string        `json:"tool_call_id,omitempty"`
+	Name             string        `json:"name,omitempty"`
 }
 
 type oaiToolCall struct {
@@ -115,6 +118,10 @@ type oaiReq struct {
 	Temperature float64   `json:"temperature,omitempty"`
 	Stream      bool      `json:"stream,omitempty"`
 	Tools       []oaiTool `json:"tools,omitempty"`
+	// ReasoningEffort for OpenAI o-series / compatible APIs (low|medium|high).
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	// IncludeReasoning is used by some OpenAI-compatible hosts (e.g. fireworks).
+	IncludeReasoning bool `json:"include_reasoning,omitempty"`
 }
 
 type oaiResp struct {
@@ -125,6 +132,10 @@ type oaiResp struct {
 	Usage struct {
 		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
+		// OpenAI reasoning models
+		CompletionTokensDetails struct {
+			ReasoningTokens int `json:"reasoning_tokens"`
+		} `json:"completion_tokens_details"`
 	} `json:"usage"`
 	Error *struct {
 		Message string `json:"message"`
@@ -191,13 +202,18 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (*
 	if maxTokens == 0 {
 		maxTokens = 4096
 	}
-	body, _ := json.Marshal(oaiReq{
+	or := oaiReq{
 		Model:       model,
 		Messages:    toOpenAIMessages(req.Messages, req.System),
 		MaxTokens:   maxTokens,
 		Temperature: req.Temperature,
 		Tools:       toOpenAITools(req.Tools),
-	})
+	}
+	if req.WantsReasoning(model) {
+		or.IncludeReasoning = true
+		or.ReasoningEffort = reasoningEffortLevel(req.Reasoning)
+	}
+	body, _ := json.Marshal(or)
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.endpoint+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -225,9 +241,13 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req CompletionRequest) (*
 		InputTokens:  oai.Usage.PromptTokens,
 		OutputTokens: oai.Usage.CompletionTokens,
 	}
+	if oai.Usage.CompletionTokensDetails.ReasoningTokens > 0 {
+		result.ReasoningTokens = oai.Usage.CompletionTokensDetails.ReasoningTokens
+	}
 	if len(oai.Choices) > 0 {
 		msg := oai.Choices[0].Message
 		result.Content = msg.Content
+		result.Reasoning = firstNonEmpty(msg.ReasoningContent, msg.Reasoning)
 		result.StopReason = oai.Choices[0].FinishReason
 		for _, tc := range msg.ToolCalls {
 			result.ToolCalls = append(result.ToolCalls, ToolCall{
@@ -252,13 +272,18 @@ func (p *OpenAIProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
 	if maxTokens == 0 {
 		maxTokens = 4096
 	}
-	body, _ := json.Marshal(oaiReq{
+	or := oaiReq{
 		Model:       model,
 		Messages:    toOpenAIMessages(req.Messages, req.System),
 		MaxTokens:   maxTokens,
 		Temperature: req.Temperature,
 		Stream:      true,
-	})
+	}
+	if req.WantsReasoning(model) {
+		or.IncludeReasoning = true
+		or.ReasoningEffort = reasoningEffortLevel(req.Reasoning)
+	}
+	body, _ := json.Marshal(or)
 	out := make(chan StreamToken, 100)
 	go func() {
 		defer close(out)
@@ -282,6 +307,8 @@ func (p *OpenAIProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
 			return
 		}
 		sc := bufio.NewScanner(resp.Body)
+		sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		var reasonTok int
 		for sc.Scan() {
 			line := sc.Text()
 			if !strings.HasPrefix(line, "data: ") {
@@ -289,26 +316,63 @@ func (p *OpenAIProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
 			}
 			data := strings.TrimPrefix(line, "data: ")
 			if data == "[DONE]" {
-				out <- StreamToken{Done: true}
+				out <- StreamToken{Done: true, ReasoningTokens: reasonTok}
 				return
 			}
 			var chunk struct {
 				Choices []struct {
 					Delta struct {
-						Content string `json:"content"`
+						Content          string `json:"content"`
+						ReasoningContent string `json:"reasoning_content"`
+						Reasoning        string `json:"reasoning"`
 					} `json:"delta"`
 				} `json:"choices"`
+				Usage *struct {
+					CompletionTokensDetails struct {
+						ReasoningTokens int `json:"reasoning_tokens"`
+					} `json:"completion_tokens_details"`
+				} `json:"usage"`
 			}
 			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 				continue
 			}
-			if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
-				out <- StreamToken{Text: chunk.Choices[0].Delta.Content}
+			if chunk.Usage != nil && chunk.Usage.CompletionTokensDetails.ReasoningTokens > 0 {
+				reasonTok = chunk.Usage.CompletionTokensDetails.ReasoningTokens
+			}
+			if len(chunk.Choices) == 0 {
+				continue
+			}
+			d := chunk.Choices[0].Delta
+			if r := firstNonEmpty(d.ReasoningContent, d.Reasoning); r != "" {
+				out <- StreamToken{Reasoning: r}
+			}
+			if d.Content != "" {
+				out <- StreamToken{Text: d.Content}
 			}
 		}
-		out <- StreamToken{Done: true}
+		out <- StreamToken{Done: true, ReasoningTokens: reasonTok}
 	}()
 	return out, nil
+}
+
+func reasoningEffortLevel(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "low", "medium", "high":
+		return strings.ToLower(strings.TrimSpace(s))
+	case "max":
+		return "high"
+	default:
+		return "medium"
+	}
+}
+
+func firstNonEmpty(ss ...string) string {
+	for _, s := range ss {
+		if strings.TrimSpace(s) != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 func (p *OpenAIProvider) CountTokens(messages []Message) int {

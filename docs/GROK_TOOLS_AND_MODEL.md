@@ -111,6 +111,19 @@ Grok-compatible `SKILL.md` packages (reusable procedures).
 | ACP `x.ai/*` | Filesystem, git, worktree, search, terminal, session, subagent, … |
 | Subagent persist | Cross-session job store for resume_from |
 
+## Phase G9 — Native reasoning streams ✅
+
+| Item | Detail |
+|------|--------|
+| StreamToken.Reasoning | Provider thinking deltas |
+| CompletionResponse.Reasoning | Full CoT on Complete (agent loop) |
+| Grok/OpenAI | `reasoning_content` / `include_reasoning` / `reasoning_effort` |
+| Gemini | `thinkingConfig.includeThoughts` + `thought` parts |
+| Claude | Extended thinking budget + thinking blocks |
+| TUI | thinking block; replaces synthetic `planning…` |
+| ACP | `agent_thought_chunk` |
+| Docs | [REASONING.md](./REASONING.md) |
+
 ### Quick start
 
 ```bash

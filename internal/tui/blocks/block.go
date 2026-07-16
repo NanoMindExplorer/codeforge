@@ -250,20 +250,34 @@ func (s *Store) AddDiff(title, diffText, meta string) {
 
 // AddThinking opens a reasoning block (synthetic "planning…" or provider text).
 func (s *Store) AddThinking(text string) {
-	// if last is streaming thinking, append
+	// if last is streaming thinking, append (replace synthetic placeholder)
 	if n := len(s.blocks); n > 0 && s.blocks[n-1].Kind == KindThinking && s.blocks[n-1].Streaming {
 		if text != "" {
-			s.blocks[n-1].Body += text
+			if s.blocks[n-1].Body == "planning…" || s.blocks[n-1].Body == "thinking…" {
+				s.blocks[n-1].Body = text
+			} else {
+				s.blocks[n-1].Body += text
+			}
+			s.blocks[n-1].Title = "thinking"
 		}
 		if s.follow {
 			s.scrollToEnd()
 		}
+		s.invalidateLayout()
 		return
 	}
 	s.append(Block{
 		ID: s.nextID("think"), TurnID: s.turnID, Kind: KindThinking,
 		Title: "thinking", Body: text, Foldable: true, Collapsed: false, Streaming: true,
 	})
+}
+
+// AppendThinkingChunk streams native provider reasoning into the thinking block.
+func (s *Store) AppendThinkingChunk(text string) {
+	if text == "" {
+		return
+	}
+	s.AddThinking(text)
 }
 
 // SealThinking marks thinking block complete (and collapses if long).

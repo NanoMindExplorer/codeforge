@@ -26,7 +26,7 @@ import (
 
 const (
 	ProjectName    = "CodeForge TUI"
-	ProjectVersion = "1.6.0"
+	ProjectVersion = "1.7.0"
 	ProjectAuthor  = "NanoMind"
 	ProjectYear    = "2026"
 	ProjectLicense = "Apache 2.0"
@@ -475,6 +475,7 @@ Env:
   GITHUB_TOKEN / GH_TOKEN
   BRAVE_API_KEY                optional richer web_search
   CODEFORGE_SANDBOX / GROK_SANDBOX   sandbox profile (see docs/SANDBOX.md)
+  CODEFORGE_REASONING      on|off|low|medium|high (native thinking tokens)
   CODEFORGE_SESSIONS_DIR   shared session storage (SSH/sync)
   CODEFORGE_PLUGIN_DIR     extra plugins path
   CODEFORGE_TELEMETRY=1    opt-in local telemetry

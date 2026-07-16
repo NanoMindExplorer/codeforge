@@ -420,6 +420,14 @@ func (s *Server) doSessionPrompt(req Request) {
 
 func (s *Server) emitAgentEvent(sessionID string, ev agent.Event) {
 	switch ev.Kind {
+	case agent.EventThinking:
+		if ev.Thinking == "" {
+			return
+		}
+		s.notifyUpdate(sessionID, map[string]any{
+			"sessionUpdate": "agent_thought_chunk",
+			"content":       map[string]any{"type": "text", "text": ev.Thinking},
+		})
 	case agent.EventText:
 		if ev.Text == "" {
 			return

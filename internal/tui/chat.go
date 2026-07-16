@@ -300,25 +300,42 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case StreamTickMsg:
 		if msg.Error != nil {
+			c.store.SealThinking()
 			c.store.SealAssistant()
 			c.store.AddSystem("⚠ Error: " + msg.Error.Error())
 			c.streaming = false
 			c.streamFull = ""
 			break
 		}
+		if msg.Reasoning != "" {
+			c.store.AppendThinkingChunk(msg.Reasoning)
+		}
 		if msg.Text != "" {
+			c.store.SealThinking()
 			c.store.AppendAssistantChunk(msg.Text)
 			c.streamFull += msg.Text
 		}
 		if msg.Done {
+			c.store.SealThinking()
 			c.store.SealAssistant()
 			if c.streamFull != "" {
 				c.messages = append(c.messages, provider.Message{
 					Role: provider.RoleAssistant, Content: c.streamFull,
 				})
 			}
+			tok := ""
 			if msg.InputTokens > 0 || msg.OutputTokens > 0 {
-				c.store.AddSystem(fmt.Sprintf("tokens: %d in / %d out", msg.InputTokens, msg.OutputTokens))
+				tok = fmt.Sprintf("tokens: %d in / %d out", msg.InputTokens, msg.OutputTokens)
+			}
+			if msg.ReasoningTokens > 0 {
+				if tok != "" {
+					tok += fmt.Sprintf(" · %d reasoning", msg.ReasoningTokens)
+				} else {
+					tok = fmt.Sprintf("reasoning tokens: %d", msg.ReasoningTokens)
+				}
+			}
+			if tok != "" {
+				c.store.AddSystem(tok)
 			}
 			c.streaming = false
 			c.streamFull = ""
@@ -327,6 +344,10 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AgentEventMsg:
 		ev := msg.Ev
 		switch ev.Kind {
+		case agent.EventThinking:
+			if ev.Thinking != "" {
+				c.store.AppendThinkingChunk(ev.Thinking)
+			}
 		case agent.EventText:
 			c.store.SealThinking()
 			c.store.AppendAssistantChunk(ev.Text)
@@ -353,8 +374,19 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Role: provider.RoleAssistant, Content: c.agentFull,
 				})
 			}
+			tok := ""
 			if ev.InputTokens > 0 || ev.OutputTokens > 0 {
-				c.store.AddSystem(fmt.Sprintf("tokens: %d in / %d out", ev.InputTokens, ev.OutputTokens))
+				tok = fmt.Sprintf("tokens: %d in / %d out", ev.InputTokens, ev.OutputTokens)
+			}
+			if ev.ReasoningTokens > 0 {
+				if tok != "" {
+					tok += fmt.Sprintf(" · %d reasoning", ev.ReasoningTokens)
+				} else {
+					tok = fmt.Sprintf("reasoning tokens: %d", ev.ReasoningTokens)
+				}
+			}
+			if tok != "" {
+				c.store.AddSystem(tok)
 			}
 			c.streaming = false
 			c.agentFull = ""

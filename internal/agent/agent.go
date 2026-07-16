@@ -22,6 +22,8 @@ type EventKind int
 
 const (
 	EventText EventKind = iota
+	// EventThinking is native provider reasoning / chain-of-thought (not assistant answer text).
+	EventThinking
 	EventToolCall
 	EventToolResult
 	// EventToolProgress is streamed mid-tool for long-running operations.
@@ -34,6 +36,8 @@ type Event struct {
 	Kind EventKind
 
 	Text string
+	// Thinking holds native reasoning token text (EventThinking).
+	Thinking string
 
 	ToolName    string
 	ToolInput   string
@@ -43,8 +47,9 @@ type Event struct {
 	// Progress is a partial chunk for EventToolProgress.
 	Progress string
 
-	InputTokens  int
-	OutputTokens int
+	InputTokens     int
+	OutputTokens    int
+	ReasoningTokens int
 
 	Error error
 }
@@ -119,12 +124,18 @@ func runLoop(ctx context.Context, cfg Config, history []provider.Message, out ch
 			return
 		}
 
+		if strings.TrimSpace(resp.Reasoning) != "" {
+			out <- Event{Kind: EventThinking, Thinking: resp.Reasoning, ReasoningTokens: resp.ReasoningTokens}
+		}
 		if resp.Content != "" {
 			out <- Event{Kind: EventText, Text: resp.Content}
 		}
 
 		if len(resp.ToolCalls) == 0 {
-			out <- Event{Kind: EventDone, InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens}
+			out <- Event{
+				Kind: EventDone, InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens,
+				ReasoningTokens: resp.ReasoningTokens,
+			}
 			return
 		}
 
