@@ -33,23 +33,21 @@ var SubagentRunner func(
 // SubagentParentRegistry is the parent tool registry (for MCP tools on explore).
 var SubagentParentRegistry *Registry
 
-// SpawnSubagent runs a nested agent turn (Grok spawn_subagent parity — Phase G6).
+// SpawnSubagent runs a nested agent turn (Grok spawn_subagent parity — Phase G6/G7).
 type SpawnSubagent struct {
 	WorkDir string
 }
 
 func (s *SpawnSubagent) Name() string { return "spawn_subagent" }
 func (s *SpawnSubagent) Description() string {
-	return `Spawn a focused sub-agent and return its summary (Grok-compatible).
+	return `Spawn a focused sub-agent (Grok-compatible).
 
-subagent_type:
-  explore — read-only research (default)
-  plan — explore + write_plan (no project source edits)
-  general-purpose | general — full tools (no nested spawn)
+subagent_type: explore | plan | general-purpose
+Optional: capability_mode, isolation (none|worktree), persona,
+description, max_iterations, background (return id immediately),
+resume_from (continue a finished subagent by id).
 
-Optional: capability_mode (read-only|read-write|execute|all),
-isolation (none|worktree), persona (researcher|concise|reviewer|custom),
-description (short label), max_iterations.`
+When background=true, poll with get_subagent_output (or get_command_or_subagent_output).`
 }
 
 func (s *SpawnSubagent) Schema() map[string]any {
@@ -82,28 +80,37 @@ func (s *SpawnSubagent) Schema() map[string]any {
 			},
 			"isolation": map[string]any{
 				"type":        "string",
-				"description": "none (default) | worktree (git worktree under .codeforge/worktrees/)",
+				"description": "none (default) | worktree",
 			},
 			"persona": map[string]any{
 				"type":        "string",
-				"description": "Optional persona name (researcher, concise, reviewer, or custom)",
+				"description": "Optional persona name",
 			},
 			"max_iterations": map[string]any{"type": "integer"},
+			"background": map[string]any{
+				"type":        "boolean",
+				"description": "If true, return job id immediately; poll get_subagent_output",
+			},
+			"resume_from": map[string]any{
+				"type":        "string",
+				"description": "Finished subagent id to continue with same context + new prompt",
+			},
 		},
-		// task or prompt required — validated in Execute
 	}
 }
 
 type spawnInput struct {
-	Task            string `json:"task"`
-	Prompt          string `json:"prompt"`
-	Description     string `json:"description"`
-	Mode            string `json:"mode"`
-	SubagentType    string `json:"subagent_type"`
-	CapabilityMode  string `json:"capability_mode"`
-	Isolation       string `json:"isolation"`
-	Persona         string `json:"persona"`
-	MaxIterations   int    `json:"max_iterations"`
+	Task           string `json:"task"`
+	Prompt         string `json:"prompt"`
+	Description    string `json:"description"`
+	Mode           string `json:"mode"`
+	SubagentType   string `json:"subagent_type"`
+	CapabilityMode string `json:"capability_mode"`
+	Isolation      string `json:"isolation"`
+	Persona        string `json:"persona"`
+	MaxIterations  int    `json:"max_iterations"`
+	Background     bool   `json:"background"`
+	ResumeFrom     string `json:"resume_from"`
 }
 
 func (s *SpawnSubagent) Execute(input json.RawMessage) Result {
@@ -119,16 +126,41 @@ func (s *SpawnSubagent) ExecuteStream(input json.RawMessage, progress ProgressFu
 	if task == "" {
 		task = strings.TrimSpace(in.Prompt)
 	}
-	if task == "" {
-		return Result{Error: "task or prompt required"}
+	if task == "" && strings.TrimSpace(in.ResumeFrom) == "" {
+		return Result{Error: "task or prompt required (or resume_from with follow-up prompt)"}
+	}
+	if task == "" && strings.TrimSpace(in.ResumeFrom) != "" {
+		return Result{Error: "resume_from requires a new task/prompt to continue"}
 	}
 	if SubagentRunner == nil {
 		return Result{Error: "subagent runner not wired"}
 	}
 
+	// Resume path: inherit type/system/messages from prior job
+	var prior *SubJob
+	if rid := strings.TrimSpace(in.ResumeFrom); rid != "" {
+		j, ok := SubJobs.Get(rid)
+		if !ok {
+			return Result{Error: "resume_from: unknown subagent id " + rid}
+		}
+		if j.Status == SubRunning {
+			return Result{Error: "resume_from: subagent still running — wait or cancel"}
+		}
+		prior = &j
+		// inherit defaults when not overridden
+		if strings.TrimSpace(in.SubagentType) == "" && strings.TrimSpace(in.Mode) == "" {
+			in.SubagentType = j.AgentType
+		}
+		if strings.TrimSpace(in.Persona) == "" && j.Persona != "" {
+			in.Persona = j.Persona
+		}
+		if strings.TrimSpace(in.Description) == "" {
+			in.Description = "resume " + j.ID
+		}
+	}
+
 	agentType := resolveSubagentType(in.SubagentType, in.Mode)
 	capMode := ParseCapabilityMode(in.CapabilityMode)
-	// type implies default capability when not set
 	if strings.TrimSpace(in.CapabilityMode) == "" {
 		switch agentType {
 		case "explore", "plan":
@@ -143,7 +175,6 @@ func (s *SpawnSubagent) ExecuteStream(input json.RawMessage, progress ProgressFu
 		isolation = "none"
 	}
 
-	// Persona may suggest isolation
 	var persona *personas.Persona
 	if name := strings.TrimSpace(in.Persona); name != "" {
 		p, ok := personas.Global().Get(name)
@@ -161,54 +192,205 @@ func (s *SpawnSubagent) ExecuteStream(input json.RawMessage, progress ProgressFu
 
 	maxIter := in.MaxIterations
 	if maxIter <= 0 {
-		maxIter = 6
+		if prior != nil && prior.MaxIterations > 0 {
+			maxIter = prior.MaxIterations
+		} else {
+			maxIter = 6
+		}
 	}
 	if maxIter > 16 {
 		maxIter = 16
 	}
 
-	workdir := s.WorkDir
-	var wt *WorktreeSession
-	if isolation == "worktree" {
-		label := in.Description
-		if label == "" {
-			label = agentType
-		}
-		sess, err := CreateWorktree(s.WorkDir, label)
-		if err != nil {
-			return Result{Error: "isolation worktree: " + err.Error()}
-		}
-		wt = sess
-		workdir = sess.Path
-		defer wt.Cleanup()
+	spec := runSpec{
+		ParentWorkDir: s.WorkDir,
+		Task:          task,
+		Description:   in.Description,
+		AgentType:     agentType,
+		CapMode:       capMode,
+		Isolation:     isolation,
+		Persona:       persona,
+		MaxIter:       maxIter,
+		Prior:         prior,
 	}
 
-	tools := buildSubagentTools(agentType, capMode, workdir)
-	sys := buildSubagentSystem(agentType, persona, in.Description)
+	if in.Background {
+		id := SubJobs.AllocID()
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+		job := &SubJob{
+			ID:            id,
+			Description:   in.Description,
+			AgentType:     agentType,
+			Isolation:     isolation,
+			Status:        SubRunning,
+			Started:       time.Now(),
+			MaxIterations: maxIter,
+			cancel:        cancel,
+		}
+		if persona != nil {
+			job.Persona = persona.Name
+		}
+		if job.Description == "" {
+			job.Description = agentType
+		}
+		SubJobs.Put(job)
 
-	label := agentType
-	if in.Description != "" {
-		label = in.Description
+		go func() {
+			defer cancel()
+			res := executeSubagentRun(ctx, spec, nil)
+			SubJobs.update(id, func(j *SubJob) {
+				j.Ended = time.Now()
+				j.Output = res.output
+				j.Error = res.errStr
+				j.ToolsUsed = res.toolsUsed
+				j.WorkDir = res.workdir
+				j.System = res.system
+				j.Messages = res.messages
+				if res.errStr != "" {
+					j.Status = SubFailed
+				} else if res.cancelled {
+					j.Status = SubCancelled
+				} else {
+					j.Status = SubSucceeded
+				}
+				j.cancel = nil
+			})
+			if j, ok := SubJobs.Get(id); ok {
+				SubJobs.notify(&j)
+			}
+		}()
+
+		return Result{
+			Success: true,
+			Output: fmt.Sprintf(
+				"Background subagent %s started (%s).\nPoll: get_subagent_output id=%s\nOr: /subagents show %s\nCancel: /subagents cancel %s",
+				id, agentType, id, id, id,
+			),
+		}
 	}
+
+	// Synchronous run
 	if progress != nil {
-		msg := "subagent (" + label + ")"
+		msg := "subagent (" + agentType + ")"
+		if in.Description != "" {
+			msg = "subagent (" + in.Description + ")"
+		}
 		if persona != nil {
 			msg += " persona=" + persona.Name
 		}
 		if isolation == "worktree" {
 			msg += " [worktree]"
 		}
+		if prior != nil {
+			msg += " resume=" + prior.ID
+		}
 		progress(msg + " starting…")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
-	msgs := []provider.Message{{Role: provider.RoleUser, Content: task}}
+	res := executeSubagentRun(ctx, spec, progress)
+	id := SubJobs.AllocID()
+	job := &SubJob{
+		ID: id, Description: in.Description, AgentType: agentType,
+		Isolation: isolation, WorkDir: res.workdir, System: res.system,
+		MaxIterations: maxIter, ToolsUsed: res.toolsUsed,
+		Started: time.Now().Add(-time.Second), Ended: time.Now(),
+		Messages: res.messages, Output: res.output, Error: res.errStr,
+	}
+	if persona != nil {
+		job.Persona = persona.Name
+	}
+	if job.Description == "" {
+		job.Description = agentType
+	}
+	if res.errStr != "" {
+		job.Status = SubFailed
+	} else if res.cancelled {
+		job.Status = SubCancelled
+	} else {
+		job.Status = SubSucceeded
+	}
+	SubJobs.Put(job)
+
+	if res.errStr != "" {
+		return Result{Error: "subagent: " + res.errStr, Output: res.output}
+	}
+	header := fmt.Sprintf("Subagent %s type=%s cap=%s isolation=%s tools=%d",
+		id, agentType, capMode, isolation, res.toolsUsed)
+	if persona != nil {
+		header += " persona=" + persona.Name
+	}
+	if prior != nil {
+		header += " resumed_from=" + prior.ID
+	}
+	if res.wtNote != "" {
+		header += "\n" + res.wtNote
+	}
+	header += "\n\n"
+	return Result{Success: true, Output: header + res.output}
+}
+
+type runSpec struct {
+	ParentWorkDir string
+	Task          string
+	Description   string
+	AgentType     string
+	CapMode       CapabilityMode
+	Isolation     string
+	Persona       *personas.Persona
+	MaxIter       int
+	Prior         *SubJob
+}
+
+type runResult struct {
+	output    string
+	errStr    string
+	toolsUsed int
+	workdir   string
+	system    string
+	messages  []provider.Message
+	wtNote    string
+	cancelled bool
+}
+
+func executeSubagentRun(ctx context.Context, spec runSpec, progress ProgressFunc) runResult {
+	workdir := spec.ParentWorkDir
+	var wt *WorktreeSession
+	var wtNote string
+	if spec.Isolation == "worktree" {
+		label := spec.Description
+		if label == "" {
+			label = spec.AgentType
+		}
+		sess, err := CreateWorktree(spec.ParentWorkDir, label)
+		if err != nil {
+			return runResult{errStr: "isolation worktree: " + err.Error()}
+		}
+		wt = sess
+		workdir = sess.Path
+		defer wt.Cleanup()
+		wtNote = "worktree=" + wt.Path + " branch=" + wt.Branch +
+			"\n(worktree cleaned up after run — commit inside worktree if you need to keep changes)"
+	}
+
+	tools := buildSubagentTools(spec.AgentType, spec.CapMode, workdir)
+	sys := buildSubagentSystem(spec.AgentType, spec.Persona, spec.Description)
+	if spec.Prior != nil && strings.TrimSpace(spec.Prior.System) != "" {
+		sys = spec.Prior.System + "\n\n# Resumed subagent\nContinue from prior work with the new user message."
+	}
+
+	var msgs []provider.Message
+	if spec.Prior != nil && len(spec.Prior.Messages) > 0 {
+		msgs = append(msgs, spec.Prior.Messages...)
+	}
+	msgs = append(msgs, provider.Message{Role: provider.RoleUser, Content: spec.Task})
 
 	var text strings.Builder
 	toolsUsed := 0
 	var lastErr string
-	SubagentRunner(ctx, workdir, sys, msgs, tools, maxIter, func(ev SubagentEvent) {
+	cancelled := false
+	SubagentRunner(ctx, workdir, sys, msgs, tools, spec.MaxIter, func(ev SubagentEvent) {
 		switch ev.Kind {
 		case "text":
 			text.WriteString(ev.Text)
@@ -224,24 +406,25 @@ func (s *SpawnSubagent) ExecuteStream(input json.RawMessage, progress ProgressFu
 			lastErr = ev.Error
 		}
 	})
-	if lastErr != "" {
-		return Result{Error: "subagent: " + lastErr}
+	if ctx.Err() == context.Canceled {
+		cancelled = true
+	} else if ctx.Err() == context.DeadlineExceeded {
+		lastErr = "timed out after 4m"
 	}
+
 	out := strings.TrimSpace(text.String())
 	if out == "" {
 		out = "(subagent finished with no text)"
 	}
-	header := fmt.Sprintf("Subagent type=%s cap=%s isolation=%s tools=%d",
-		agentType, capMode, isolation, toolsUsed)
-	if persona != nil {
-		header += " persona=" + persona.Name
+
+	finalMsgs := append([]provider.Message{}, msgs...)
+	finalMsgs = append(finalMsgs, provider.Message{Role: provider.RoleAssistant, Content: out})
+
+	return runResult{
+		output: out, errStr: lastErr, toolsUsed: toolsUsed,
+		workdir: workdir, system: sys, messages: finalMsgs,
+		wtNote: wtNote, cancelled: cancelled,
 	}
-	if wt != nil {
-		header += "\nworktree=" + wt.Path + " branch=" + wt.Branch
-		header += "\n(worktree cleaned up after run — commit inside worktree if you need to keep changes)"
-	}
-	header += "\n\n"
-	return Result{Success: true, Output: header + out}
 }
 
 func resolveSubagentType(subType, mode string) string {
@@ -257,7 +440,6 @@ func resolveSubagentType(subType, mode string) string {
 	case "general", "general-purpose", "general_purpose", "full", "act":
 		return "general-purpose"
 	default:
-		// unknown → treat as explore for safety
 		return "explore"
 	}
 }
@@ -266,7 +448,6 @@ func buildSubagentTools(agentType string, cap CapabilityMode, workdir string) *R
 	parent := SubagentParentRegistry
 	switch agentType {
 	case "plan":
-		// plan registry; capability may still restrict further
 		if cap == CapReadOnly || cap == CapAll {
 			return NewPlanRegistry(workdir, parent)
 		}

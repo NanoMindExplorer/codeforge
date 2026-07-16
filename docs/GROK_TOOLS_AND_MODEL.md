@@ -90,6 +90,17 @@ Grok-compatible `SKILL.md` packages (reusable procedures).
 | Slash | `/personas` |
 | Docs | [SUBAGENTS.md](./SUBAGENTS.md) |
 
+## Phase G7 — Background subagents ✅
+
+| Item | Detail |
+|------|--------|
+| `background` | Async spawn returns `sub-N` id |
+| `get_subagent_output` | Poll status/output; optional `wait_ms` |
+| Alias | `get_command_or_subagent_output` |
+| `resume_from` | Continue a finished job with new prompt |
+| Slash | `/subagents` list · show · cancel |
+| Tracking | Sync runs also get ids for resume |
+
 ### Quick start
 
 ```bash

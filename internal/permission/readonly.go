@@ -23,6 +23,8 @@ var readOnlyTools = map[string]bool{
 	"ask_user_question":     true,
 	"ask_user":              true, // Grok alias
 	"spawn_subagent":        true, // gated by subagent mode internally
+	"get_subagent_output":   true,
+	"get_command_or_subagent_output": true,
 	"glob_file_search":      true,
 	"glob":                  true,
 	"find_files":            true,

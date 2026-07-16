@@ -56,6 +56,7 @@ func DefaultItems() []Item {
 		{"/memory", "Cross-session notes (list/add/search)"},
 		{"/skills", "List / invoke Grok-compatible skills"},
 		{"/personas", "Subagent personas (researcher, concise, …)"},
+		{"/subagents", "Background/recent subagent jobs"},
 		{"/settings", "UI settings panel"},
 		{"/copy", "Copy selected block"},
 		{"/cost", "Session token cost"},

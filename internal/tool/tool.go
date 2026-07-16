@@ -515,6 +515,8 @@ func NewRegistry(workDir string) *Registry {
     r.Register(&MemorySearch{})
     r.Register(&MemoryWrite{})
     r.Register(&SpawnSubagent{WorkDir: workDir})
+    getSub := &GetSubagentOutput{}
+    r.Register(getSub)
     r.Register(&AskUserQuestion{})
     // Grok-compatible name aliases
     r.Register(&Alias{AliasName: "grep", Inner: grep})
@@ -525,6 +527,7 @@ func NewRegistry(workDir string) *Registry {
     r.Register(&Alias{AliasName: "glob", Inner: glob})
     r.Register(&Alias{AliasName: "find_files", Inner: glob})
     r.Register(&Alias{AliasName: "ask_user", Inner: &AskUserQuestion{}})
+    r.Register(&Alias{AliasName: "get_command_or_subagent_output", Inner: getSub})
     // GitHub integration (gh CLI + GITHUB_TOKEN REST)
     r.Register(&GitHubTool{Client: defaultGitHubClient(workDir)})
     return r

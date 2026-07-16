@@ -982,7 +982,7 @@ func isImmediateSlash(cmd string) bool {
 		"/sessions", "/resume", "/new", "/fork", "/rewind", "/compact",
 		"/context", "/session-info", "/mode", "/plan", "/view-plan",
 		"/permissions", "/sandbox", "/hooks", "/todos", "/tasks", "/settings", "/copy",
-		"/memory", "/skills", "/personas", "/undo", "/push", "/pull":
+		"/memory", "/skills", "/personas", "/subagents", "/undo", "/push", "/pull":
 		return true
 	default:
 		return false
@@ -1735,6 +1735,10 @@ func (m *Model) syncStatus() {
 	m.status.TodoBadge = todos.Global.Badge()
 	m.status.BgTasks = bgtask.Global.RunningCount()
 	m.status.Sandbox = sandbox.Global().Label()
+	// show running subagents alongside bg shell tasks
+	if n := tool.SubJobs.RunningCount(); n > 0 {
+		m.status.BgTasks += n
+	}
 	if m.gitRepo != nil {
 		if branch, err := m.gitRepo.Branch(); err == nil {
 			m.status.Branch = branch
@@ -2412,6 +2416,44 @@ func (m *Model) executeSlashCommand(input string) tea.Cmd {
 			m.chat.AddSystemMessage("Todos cleared")
 		default:
 			m.chat.AddSystemMessage("Usage: /todos [add|done|progress|clear]")
+		}
+
+	case "subagents", "subagent", "subs":
+		if len(args) == 0 || strings.EqualFold(args[0], "list") || strings.EqualFold(args[0], "ls") {
+			m.chat.AddSystemMessage(tool.SubJobs.Summary())
+			return nil
+		}
+		switch strings.ToLower(args[0]) {
+		case "show", "view", "get", "output":
+			if len(args) < 2 {
+				m.chat.AddSystemMessage("Usage: /subagents show <id>")
+				return nil
+			}
+			j, ok := tool.SubJobs.Get(args[1])
+			if !ok {
+				m.chat.AddSystemMessage("Unknown subagent: " + args[1])
+				return nil
+			}
+			m.chat.AddSystemMessage(tool.FormatJobOutput(j))
+		case "cancel", "kill", "stop":
+			if len(args) < 2 {
+				m.chat.AddSystemMessage("Usage: /subagents cancel <id>")
+				return nil
+			}
+			if err := tool.SubJobs.Cancel(args[1]); err != nil {
+				m.chat.AddSystemMessage("⚠ " + err.Error())
+			} else {
+				m.chat.AddSystemMessage("Cancel signal sent to " + args[1])
+				m.toast = components.NewToast("Subagent cancel "+args[1], "info", 2*time.Second)
+			}
+		default:
+			// treat as id
+			j, ok := tool.SubJobs.Get(args[0])
+			if !ok {
+				m.chat.AddSystemMessage("Usage: /subagents [list|show <id>|cancel <id>]")
+				return nil
+			}
+			m.chat.AddSystemMessage(tool.FormatJobOutput(j))
 		}
 
 	case "personas", "persona":
@@ -3561,7 +3603,7 @@ var slashCommands = []string{
 	"/theme", "/compact-mode", "/vim-mode",
 	"/resume", "/new", "/fork", "/rewind", "/compact", "/context", "/session-info",
 	"/mode", "/plan", "/view-plan", "/permissions", "/sandbox", "/hooks",
-	"/todos", "/tasks", "/memory", "/skills", "/personas", "/settings", "/copy",
+	"/todos", "/tasks", "/memory", "/skills", "/personas", "/subagents", "/settings", "/copy",
 	"/sessions", "/undo", "/clear", "/help", "/about", "/quit",
 }
 
@@ -3575,7 +3617,7 @@ func autocomplete(input string) string {
 }
 
 func helpText() string {
-	return `CodeForge · Grok 4.5 parity  ·  Phases 1–9 + G1–G6
+	return `CodeForge · Grok 4.5 parity  ·  Phases 1–9 + G1–G7
 
 SCROLLBACK
   Enter · y/Y · j/k · fold · G follow-tail
@@ -3585,26 +3627,26 @@ MODES
 
 PRODUCT
   /resume /new /fork /rewind /compact /context
-  /plan /view-plan /todos /tasks /memory /skills /personas /settings
+  /plan /todos /tasks /subagents /memory /skills /personas /settings
   /theme /permissions /sandbox /hooks /vim-mode /compact-mode
 
 AGENT / IDE
-  codeforge agent … | agent stdio | agent serve
-  spawn_subagent: explore|plan|general-purpose · persona · worktree
-  Skills: /skills  ·  Personas: /personas  ·  Sandbox: /sandbox
+  spawn_subagent background=true · get_subagent_output · resume_from
+  /subagents list|show|cancel  ·  /skills  ·  /personas  ·  /sandbox
   See docs/SUBAGENTS.md · docs/SKILLS.md · docs/SANDBOX.md
 `
 }
 
 func aboutText() string {
-	return `CodeForge TUI v1.4.0
+	return `CodeForge TUI v1.5.0
 Created by NanoMind — 2026 — Apache 2.0
 
-Grok Build TUI–compatible (Phases 1–9 + G1–G6):
+Grok Build TUI–compatible (Phases 1–9 + G1–G7):
   blocks · input · themes · sessions · design plan
   permissions/hooks · todos/tasks · ACP IDE bridge
-  Grok 4.5 · tools · sandbox · skills · subagent personas
-Honest gaps: process-wide Landlock, full x.ai/* ACP, bg subagents.
+  Grok 4.5 · tools · sandbox · skills · personas
+  background subagents · get_subagent_output · resume_from
+Honest gaps: process-wide Landlock, full x.ai/* ACP.
 See docs/SUBAGENTS.md · docs/SKILLS.md · docs/SANDBOX.md
 `
 }

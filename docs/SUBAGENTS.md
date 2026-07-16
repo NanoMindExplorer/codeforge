@@ -13,6 +13,8 @@ Grok-compatible **spawn_subagent** with agent types, capability modes, git workt
 | `isolation` | `none` (default) · `worktree` |
 | `persona` | Named persona overlay (e.g. `researcher`) |
 | `max_iterations` | Cap tool loop (default 6, max 16) |
+| `background` | If `true`, return job id immediately (Phase G7) |
+| `resume_from` | Finished job id to continue with a new prompt (Phase G7) |
 
 ### Agent types
 
@@ -113,12 +115,51 @@ subagents:
 }
 ```
 
+## Background subagents (Phase G7)
+
+```json
+{
+  "prompt": "Map all HTTP handlers",
+  "subagent_type": "explore",
+  "background": true,
+  "description": "http map"
+}
+```
+
+Returns immediately:
+
+```text
+Background subagent sub-1 started (explore).
+Poll: get_subagent_output id=sub-1
+```
+
+Then:
+
+```json
+{ "id": "sub-1", "wait_ms": 30000 }
+```
+
+Tools: `get_subagent_output` · alias `get_command_or_subagent_output`  
+Slash: `/subagents` · `/subagents show sub-1` · `/subagents cancel sub-1`
+
+Sync runs are also recorded with an id so you can `resume_from` them.
+
+### Resume
+
+```json
+{
+  "prompt": "Now check auth only",
+  "resume_from": "sub-1"
+}
+```
+
+Prior messages + system are restored; the new prompt is appended.
+
 ## Honest limits
 
-- No background subagent queue / `get_command_or_subagent_output` yet (runs synchronously)
-- No `resume_from` conversation continuation
 - Nested `spawn_subagent` is disabled inside children
-- Worktree cleanup always runs after the child finishes
+- Worktree cleanup always runs after the child finishes (including background)
+- No cross-session persistence of subagent jobs (in-memory until process exit)
 
 ## Related
 
