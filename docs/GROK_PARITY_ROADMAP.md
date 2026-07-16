@@ -350,11 +350,22 @@ When implementing, each phase PR should:
 
 ### Phase 0
 - [x] Roadmap written
-- [ ] Checklist accepted by maintainer
-- [ ] Non-goals confirmed
+- [x] Checklist accepted (implementation started)
+- [x] Non-goals documented in this file
 
-### Phase 1–9
-- [ ] Not started (track in PRs)
+### Phase 1 — Scrollback engine
+- [x] `internal/tui/blocks` — Block model + Store
+- [x] Foldable tool/user/assistant/diff/system/thinking kinds
+- [x] Select j/k · fold h/l · E expand-all
+- [x] Follow-tail + G resume; manual scroll breaks follow
+- [x] Sticky user header when scrolled past prompt
+- [x] Scrollbar thumb
+- [x] ChatModel wired to block store (streaming + agent tools)
+- [x] Unit tests (fold, follow, sticky, stream)
+- [ ] Dogfood screenshot vs Grok (optional)
+
+### Phase 2–9
+- [ ] Not started
 
 ---
 

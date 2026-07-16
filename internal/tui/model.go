@@ -1953,44 +1953,47 @@ func autocomplete(input string) string {
 }
 
 func helpText() string {
-	return `CodeForge · Grok 4.5–style TUI  ·  v0.8.0
+	return `CodeForge · Grok-parity Phase 1  ·  v0.9.0
 
-LAYOUT (like Grok Build)
-  Scrollback  full-width conversation blocks with accent bars
-  Prompt      bottom composer (❯) — focused by default
-  Footer      mode · model · git/gh · cost · theme
+LAYOUT
+  Scrollback  foldable blocks (you / assistant / tools / diffs)
+  Prompt      ❯ composer — focused by default
+  Footer      PROMPT/SCROLL · PLAN/ACT · model · cost · theme
+
+SCROLLBACK (focus with Tab / Esc)
+  j / k · ↑↓    Select block
+  h / l · ←→    Collapse / expand selected
+  e             Toggle fold
+  E             Expand all / collapse all
+  g / G         Top / follow-tail (resume auto-scroll)
+  PgUp/PgDn     Page scroll
+  Ctrl+B        Side panels (diff/files)
 
 FOCUS
-  Tab           Swap prompt ↔ scrollback
-  Esc           Scrollback (or 2× Esc clear prompt)
-  Space / i     Focus prompt
-  Type letter   Auto-focus prompt (simple mode)
-  Ctrl+B        Toggle Diff/Files side panels
+  Tab           Prompt ↔ scrollback
+  Esc · 2×Esc   Scrollback / clear prompt
+  Type          Auto-focus prompt
 
 MODES
-  Shift+Tab     Cycle Plan ↔ Act write mode
-  /theme        Cycle themes (groknight default)
-  /compact-mode Tighter padding
+  Shift+Tab     Plan ↔ Act
+  /theme        Theme cycle
+  /compact-mode Compact padding
 
 INPUT
-  @             File picker
-  /             Slash commands (+ autocomplete strip)
-  Ctrl+K        Command palette
-  Enter         Send
-
-` + keymap.FullHelp()
+  @  file   /  commands   Ctrl+K  palette   Enter  send
+`
 }
 
 func aboutText() string {
-	return `CodeForge TUI v0.8.0
+	return `CodeForge TUI v0.9.0
 Created by NanoMind — 2026 — Apache 2.0
 
-UX: Grok 4.5–inspired scrollback + prompt · GrokNight theme
-Features: agent · Plan/Act · GitHub · plugins · headless CI · rules · index
-Stack: Go · Bubble Tea · Glamour · multi-provider
+Phase 1: block scrollback engine (fold · select · sticky · follow-tail)
+UX: Grok 4.5–compatible layout · GrokNight theme
+Stack: Go · Bubble Tea · multi-provider · GitHub · plugins · headless
 
-"Terminal AI coding companion — open, modular, vendor-neutral."
-                        — NanoMind, 2026`
+See docs/GROK_PARITY_ROADMAP.md
+`
 }
 
 func min(a, b int) int {
