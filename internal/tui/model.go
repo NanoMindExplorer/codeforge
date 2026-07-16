@@ -422,6 +422,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+	case BabysitDoneMsg:
+		body := gh.FormatCheckStatus(msg.Status)
+		if msg.Err != nil {
+			m.chat.AddSystemMessage("PR babysit finished with issues:\n" + body + "\n⚠ " + msg.Err.Error())
+			m.toast = components.NewToast("CI not green", "error", 4*time.Second)
+			if msg.Fix {
+				// Kick agent to fix failing CI
+				task := fmt.Sprintf(
+					"CI checks failed on PR #%d. Inspect failures, fix the code with search_replace/apply_patch, run tests, push, then re-check with github babysit_once. Summary:\n%s",
+					msg.PR, body,
+				)
+				if c := m.chat.SubmitAgent(task); c != nil {
+					cmds = append(cmds, c)
+				}
+			}
+		} else {
+			m.chat.AddSystemMessage("✅ PR babysit complete — checks green\n" + body)
+			m.toast = components.NewToast("CI green", "success", 3*time.Second)
+		}
+
 	case errMsg:
 		m.chat.AddSystemMessage("⚠ Error: " + msg.err.Error())
 		m.chat.streaming = false
@@ -600,6 +620,8 @@ func buildPaletteItems(m *Model) []palette.Item {
 		{"/pull", "Pull", "Pull from origin"},
 		{"/pr list", "PR list", "List pull requests"},
 		{"/pr create", "PR create", "Create pull request"},
+		{"/pr babysit", "PR babysit", "Poll CI until green"},
+		{"/pr babysit --fix", "PR babysit+fix", "Poll CI then agent-fix"},
 		{"/issue list", "Issues", "List GitHub issues"},
 		{"/gh auth", "GitHub auth", "Auth status"},
 		{"/clear", "Clear", "Clear chat"},
@@ -1395,6 +1417,94 @@ func (m *Model) handlePRSubcommand(ctx context.Context, args []string) tea.Cmd {
 		}
 		m.chat.AddSystemMessage("CI checks:\n" + out)
 		return nil
+	case "diff":
+		n := 0
+		if len(rest) > 0 {
+			n, _ = strconv.Atoi(strings.TrimPrefix(rest[0], "#"))
+		}
+		out, err := m.ghClient.PRDiff(ctx, n)
+		if err != nil {
+			m.chat.AddSystemMessage("⚠ pr diff: " + err.Error())
+			return nil
+		}
+		if len(out) > 8000 {
+			out = out[:8000] + "\n… (truncated)"
+		}
+		m.chat.AddSystemMessage("PR diff:\n" + out)
+		return nil
+	case "comment":
+		if len(rest) < 2 {
+			m.chat.AddSystemMessage("Usage: /pr comment <number> <body…>")
+			return nil
+		}
+		n, _ := strconv.Atoi(strings.TrimPrefix(rest[0], "#"))
+		body := strings.Join(rest[1:], " ")
+		out, err := m.ghClient.CommentOnPR(ctx, n, body)
+		if err != nil {
+			m.chat.AddSystemMessage("⚠ " + err.Error())
+			return nil
+		}
+		m.chat.AddSystemMessage("✓ Comment posted\n" + out)
+		m.toast = components.NewToast("PR comment posted", "success", 2*time.Second)
+		return nil
+	case "review", "reviewers":
+		if len(rest) < 2 {
+			m.chat.AddSystemMessage("Usage: /pr review <number> user1,user2")
+			return nil
+		}
+		n, _ := strconv.Atoi(strings.TrimPrefix(rest[0], "#"))
+		var revs []string
+		for _, r := range strings.Split(strings.Join(rest[1:], " "), ",") {
+			r = strings.TrimSpace(r)
+			if r != "" {
+				revs = append(revs, r)
+			}
+		}
+		out, err := m.ghClient.RequestReviewers(ctx, n, revs)
+		if err != nil {
+			m.chat.AddSystemMessage("⚠ " + err.Error())
+			return nil
+		}
+		m.chat.AddSystemMessage("✓ Reviewers requested\n" + out)
+		return nil
+	case "commits":
+		n := 0
+		if len(rest) > 0 {
+			n, _ = strconv.Atoi(strings.TrimPrefix(rest[0], "#"))
+		}
+		out, err := m.ghClient.PRCommits(ctx, n)
+		if err != nil {
+			m.chat.AddSystemMessage("⚠ " + err.Error())
+			return nil
+		}
+		m.chat.AddSystemMessage("PR commits:\n" + out)
+		return nil
+	case "babysit":
+		// /pr babysit [n] [--fix]
+		n := 0
+		fix := false
+		for _, a := range rest {
+			if a == "--fix" || a == "fix" {
+				fix = true
+				continue
+			}
+			if v, err := strconv.Atoi(strings.TrimPrefix(a, "#")); err == nil {
+				n = v
+			}
+		}
+		m.chat.AddSystemMessage(fmt.Sprintf("⏳ Babysitting PR checks (pr=%d)… poll every 20s", n))
+		m.toast = components.NewToast("PR babysit started", "info", 2*time.Second)
+		ghc := m.ghClient
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+			defer cancel()
+			cs, err := ghc.Babysit(ctx, gh.BabysitOptions{
+				PRNumber: n,
+				Interval: 20 * time.Second,
+				Timeout:  15 * time.Minute,
+			})
+			return BabysitDoneMsg{Status: cs, Err: err, PR: n, Fix: fix}
+		}
 	default:
 		m.chat.AddSystemMessage("Unknown /pr subcommand. " + githubHelpText())
 		return nil
@@ -1452,6 +1562,20 @@ func (m *Model) handleIssueSubcommand(ctx context.Context, args []string) tea.Cm
 		m.chat.AddSystemMessage("✓ Issue created\n" + out)
 		m.toast = components.NewToast("Issue created", "success", 3*time.Second)
 		return nil
+	case "comment":
+		if len(rest) < 2 {
+			m.chat.AddSystemMessage("Usage: /issue comment <number> <body…>")
+			return nil
+		}
+		n, _ := strconv.Atoi(strings.TrimPrefix(rest[0], "#"))
+		body := strings.Join(rest[1:], " ")
+		out, err := m.ghClient.CommentOnIssue(ctx, n, body)
+		if err != nil {
+			m.chat.AddSystemMessage("⚠ " + err.Error())
+			return nil
+		}
+		m.chat.AddSystemMessage("✓ Issue comment\n" + out)
+		return nil
 	default:
 		m.chat.AddSystemMessage("Unknown /issue subcommand. " + githubHelpText())
 		return nil
@@ -1478,15 +1602,20 @@ PULL REQUESTS
   /pr create <title> [| body]
   /pr merge <n> [squash|merge|rebase]
   /pr checks [n]        CI status
+  /pr diff [n]          Full PR diff
+  /pr comment <n> body  Comment on PR
+  /pr review <n> u1,u2  Request reviewers
+  /pr commits [n]       Commits on PR
+  /pr babysit [n] [--fix]  Poll CI until green; --fix runs agent on failure
 
 ISSUES
   /issue list [state]
   /issue view <n>
   /issue create <title> [| body]
+  /issue comment <n> body
 
-AGENT
-  /act open a PR for the current branch with a good title and summary
-  (agent uses the github tool: pr_create, push, checks, …)
+AGENT TOOLS
+  search_replace · apply_patch · github (babysit, pr_diff, …)
 
 Setup:  gh auth login   OR   export GITHUB_TOKEN=ghp_...`
 }
@@ -1562,6 +1691,14 @@ type GitHubStatusMsg struct {
 	Err  string
 }
 
+// BabysitDoneMsg is returned when /pr babysit polling finishes.
+type BabysitDoneMsg struct {
+	Status gh.CheckStatus
+	Err    error
+	PR     int
+	Fix    bool
+}
+
 func pumpStream(ch <-chan provider.StreamToken) tea.Cmd {
 	if ch == nil {
 		return nil
@@ -1633,23 +1770,27 @@ func autocomplete(input string) string {
 }
 
 func helpText() string {
-	return `CodeForge TUI v0.4.0  ·  NanoMind 2026  ·  Neo-Forge + GitHub
+	return `CodeForge TUI v0.5.0  ·  NanoMind 2026  ·  Tier-1 Agent Platform
 
 ` + keymap.FullHelp() + `
 
-GITHUB
+GITHUB & SHIP
   /gh auth · /push · /pull · /pr · /issue
-  (see /gh help for full GitHub command set)`
+  /pr babysit [n] [--fix]   poll CI · auto-fix with agent
+  (see /gh help)
+
+EDITING
+  Prefer agent tools search_replace + apply_patch over full rewrites`
 }
 
 func aboutText() string {
-	return `CodeForge TUI v0.4.0
+	return `CodeForge TUI v0.5.0
 Created by NanoMind — 2026 — Apache 2.0
 
+Tier-1: PR babysit · surgical patches · multi-root workspace · tool progress
 Stack: Go · Bubble Tea · Glamour · Gemini/Claude/OpenAI/Ollama
-GitHub: gh CLI + REST (GITHUB_TOKEN) — PRs, issues, checks, push/pull
+GitHub: gh CLI + REST — PRs, issues, checks, comments, reviews
 Design: Terminal Glass / Aurora Dark
-Workflow: Plan/Act · Sessions · @file · Palette · Review · GitHub
 
 "Terminal AI coding companion — open, modular, vendor-neutral — and it feels like the future."
                         — NanoMind, 2026`

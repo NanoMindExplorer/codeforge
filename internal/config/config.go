@@ -16,6 +16,15 @@ type Config struct {
     NoMotion        bool                `mapstructure:"no_motion"`
     Git             GitConfig           `mapstructure:"git"`
     Permissions     PermissionsConfig   `mapstructure:"permissions"`
+    Workspace       WorkspaceConfig     `mapstructure:"workspace"`
+}
+
+// WorkspaceConfig enables multi-root monorepo support.
+type WorkspaceConfig struct {
+    // ExtraRoots are additional project roots (relative to primary or absolute).
+    ExtraRoots []string `mapstructure:"extra_roots"`
+    // IgnoreDirs overrides default directory ignore list when non-empty.
+    IgnoreDirs []string `mapstructure:"ignore_dirs"`
 }
 
 type Provider struct {
@@ -99,6 +108,10 @@ func Default() *Config {
             RequireConfirmWrite: true,
             RequireConfirmShell: true,
             RequireConfirmPush:  true,
+        },
+        Workspace: WorkspaceConfig{
+            ExtraRoots: nil,
+            IgnoreDirs: nil,
         },
     }
 }

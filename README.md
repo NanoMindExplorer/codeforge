@@ -12,7 +12,7 @@
 | **Year** | 2026 |
 | **License** | Apache License 2.0 |
 | **Codename** | Neo-Forge |
-| **Version** | `v0.4.0` |
+| **Version** | `v0.5.0` |
 
 CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in your terminal: stream chat, call tools on your project, review file writes safely (Plan mode), and **integrate with GitHub** (PRs, issues, checks, push/pull — the same class of workflows modern AI coding agents use) — without leaving the keyboard.
 
@@ -54,7 +54,10 @@ CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in y
 | **Files pane** | Live project listing, AI “touched” highlights, optional git status glyphs. |
 | **Workflow** | `Ctrl+K` fuzzy palette · `@file` attachments · persistent **sessions** · `/undo` checkpoints · toasts. |
 | **Providers** | **Gemini** · **Claude** · **OpenAI-compatible** · **Ollama** (local/offline). |
-| **GitHub** | First-class integration via **`gh` CLI** and/or **`GITHUB_TOKEN`**: PRs, issues, CI checks, push/pull, branch create — usable from slash commands **and** the agent `github` tool. |
+| **GitHub** | **`gh` / token**: PRs, issues, comments, reviews, diffs, **CI babysit**, push/pull — slash commands + agent `github` tool. |
+| **Surgical edits** | **`search_replace`** + **`apply_patch`** (Plan-staged) preferred over full-file rewrites. |
+| **Monorepo** | Multi-root workspace (`workspace.extra_roots`) + smart ignores / secret file skips. |
+| **Live tools** | Tool progress streaming (babysit polls, long outputs) in the chat timeline. |
 | **Theme** | Aurora Dark design tokens; light theme; optional `~/.codeforge/theme.yaml`. |
 | **Motion** | Breathing gradient borders, typewriter system messages, toast notifications. Disable with `--no-motion`. |
 | **Portable** | Pure Go, `CGO_ENABLED=0`, Termux / Android friendly (~21MB single binary). |
@@ -107,7 +110,7 @@ codeforge --no-motion
 
 ```bash
 codeforge --version
-# → codeforge 0.4.0
+# → codeforge 0.5.0
 ```
 
 ---
@@ -369,31 +372,64 @@ If the workdir is a git repository (CodeForge may init one if missing):
 
 ```text
 1. /mode plan                    # safe writes
-2. /act implement feature X …
+2. /act implement feature X using search_replace/apply_patch
 3. Review overlay → Enter        # apply patches
 4. /commit feat: implement X
 5. /push
-6. /pr create feat: implement X | ## Summary
-   - what changed
-   - test plan
-7. /pr checks
+6. /pr create feat: implement X | ## Summary …
+7. /pr babysit --fix           # poll CI; on failure auto-agent-fix
 ```
 
-Or in one agent turn (Act or after files exist):
+Or in one agent turn:
 
 ```text
-/act commit all changes with a good message, push the branch,
-     and open a pull request against main with a markdown summary
+/act implement the change with search_replace, run tests, commit, push,
+     open a PR, then babysit checks until green (fix and push if red)
 ```
 
-The agent will call the **`github`** tool (`push`, `pr_create`, …).
+### Surgical edits
+
+Prefer agent tools:
+
+| Tool | Use when |
+|------|----------|
+| `search_replace` | Exact old→new text (unique match or `replace_all`) |
+| `apply_patch` | Multi-hunk / multi-file CodeForge patch format |
+| `write_file` | New files or full rewrites only |
+
+### Multi-root monorepo
+
+In `~/.config/codeforge/config.yaml`:
+
+```yaml
+workspace:
+  extra_roots:
+    - ../shared-lib
+    - /abs/path/to/package
+  # optional override:
+  # ignore_dirs: [node_modules, vendor, dist]
+```
+
+Paths resolve against primary workdir first, then extra roots. Grep skips secrets (`.env`, `*.pem`) and heavy dirs by default.
+
+### PR babysit
+
+```text
+/pr babysit              # current branch PR
+/pr babysit 42           # PR #42
+/pr babysit 42 --fix    # on failure → agent fix loop
+```
+
+Also via agent: `github` action `babysit` / `babysit_once`.
 
 ### Architecture note
 
 ```text
-internal/github/     Client: gh CLI first → REST (GITHUB_TOKEN) fallback
-internal/tool/github.go   Agent-facing unified "github" tool
-internal/tui/        /gh /pr /issue /push /pull + status bar badge
+internal/github/     gh CLI → REST; deeper PR ops + babysit
+internal/workspace/  multi-root sandbox + ignore rules
+internal/tool/       search_replace, apply_patch, github, staged writes
+internal/agent/      EventToolProgress streaming
+internal/ui/markdown lazy glamour (plain path / CODEFORGE_PLAIN_MD=1)
 ```
 
 ---
@@ -534,7 +570,14 @@ codeforge --skip-wizard --no-motion ~/src/myapp
 | `GITHUB_TOKEN` / `GH_TOKEN` | GitHub REST auth (optional if `gh auth login` is done) |
 | `CODEFORGE_THEME` | `aurora` (default) or `light` |
 | `CODEFORGE_NO_MOTION` | `1` / `true` disables motion |
+| `CODEFORGE_PLAIN_MD` / `CODEFORGE_NO_GLAMOUR` | Skip rich markdown (faster / leaner) |
 | `NERD_FONT` / `NERD_FONTS` | Prefer Nerd Font file/git glyphs |
+
+Optional smaller binary (no glamour/chroma at compile time):
+
+```bash
+CGO_ENABLED=0 go build -tags plainmd -ldflags="-s -w" -o codeforge ./cmd/codeforge/
+```
 
 ---
 

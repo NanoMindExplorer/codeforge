@@ -11,30 +11,22 @@ import (
 	gh "github.com/codeforge/tui/internal/github"
 )
 
-// GitHubTool exposes GitHub operations (PR, issues, push, checks) to the agent.
-// Mirrors the capability set used by modern AI coding companions (gh + API).
+// GitHubTool exposes GitHub operations to the agent (gh CLI + REST).
 type GitHubTool struct {
 	Client *gh.Client
 }
 
 func (g *GitHubTool) Name() string { return "github" }
 func (g *GitHubTool) Description() string {
-	return `Interact with GitHub for the current repository (like gh CLI).
+	return `Interact with GitHub for the current repository (like advanced AI coding agents).
 Actions:
-  auth_status — who is logged in
-  repo_view — repository metadata
-  pr_list — list pull requests (state: open|closed|merged|all)
-  pr_view — view PR details (number optional = current branch PR)
-  pr_create — create PR (title required; body, base, head, draft optional)
-  pr_merge — merge PR (number, method: merge|squash|rebase)
-  issue_list — list issues
-  issue_view — view issue by number
-  issue_create — create issue (title, body, labels)
-  checks — CI checks for a PR or current branch PR
-  push — git push current branch (-u origin HEAD)
-  pull — git pull
-  branch_create — create and checkout branch (name)
-  log — recent commits`
+  auth_status, repo_view
+  pr_list, pr_view, pr_create, pr_merge, pr_diff, pr_comment, pr_review_request, pr_ready, pr_commits
+  issue_list, issue_view, issue_create, issue_comment
+  checks, babysit (poll CI until green/fail; interval_sec, timeout_sec)
+  babysit_once (single CI snapshot)
+  push, pull, branch_create, log
+  commit_prs (list PRs for a commit sha — field: sha)`
 }
 
 func (g *GitHubTool) Schema() map[string]any {
@@ -42,50 +34,61 @@ func (g *GitHubTool) Schema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"action": map[string]any{
-				"type":        "string",
-				"description": "Operation to perform (see tool description)",
+				"type": "string",
 				"enum": []string{
 					"auth_status", "repo_view",
-					"pr_list", "pr_view", "pr_create", "pr_merge",
-					"issue_list", "issue_view", "issue_create",
-					"checks", "push", "pull", "branch_create", "log",
+					"pr_list", "pr_view", "pr_create", "pr_merge", "pr_diff",
+					"pr_comment", "pr_review_request", "pr_ready", "pr_commits",
+					"issue_list", "issue_view", "issue_create", "issue_comment",
+					"checks", "babysit", "babysit_once",
+					"push", "pull", "branch_create", "log", "commit_prs",
 				},
 			},
-			"title":  map[string]any{"type": "string", "description": "PR or issue title"},
-			"body":   map[string]any{"type": "string", "description": "PR or issue body (markdown)"},
-			"base":   map[string]any{"type": "string", "description": "Base branch for PR (default main)"},
-			"head":   map[string]any{"type": "string", "description": "Head branch for PR"},
-			"draft":  map[string]any{"type": "boolean", "description": "Create draft PR"},
-			"number": map[string]any{"type": "integer", "description": "PR or issue number"},
-			"state":  map[string]any{"type": "string", "description": "Filter state: open|closed|merged|all"},
-			"method": map[string]any{"type": "string", "description": "Merge method: merge|squash|rebase"},
-			"name":   map[string]any{"type": "string", "description": "Branch name for branch_create"},
-			"labels": map[string]any{
-				"type":        "string",
-				"description": "Comma-separated labels for issue_create",
-			},
-			"limit": map[string]any{"type": "integer", "description": "Max list items (default 20)"},
+			"title":        map[string]any{"type": "string"},
+			"body":         map[string]any{"type": "string"},
+			"base":         map[string]any{"type": "string"},
+			"head":         map[string]any{"type": "string"},
+			"draft":        map[string]any{"type": "boolean"},
+			"number":       map[string]any{"type": "integer"},
+			"state":        map[string]any{"type": "string"},
+			"method":       map[string]any{"type": "string"},
+			"name":         map[string]any{"type": "string"},
+			"labels":       map[string]any{"type": "string"},
+			"limit":        map[string]any{"type": "integer"},
+			"reviewers":    map[string]any{"type": "string", "description": "Comma-separated GitHub logins"},
+			"sha":          map[string]any{"type": "string"},
+			"interval_sec": map[string]any{"type": "integer", "description": "Babysit poll interval (default 20)"},
+			"timeout_sec":  map[string]any{"type": "integer", "description": "Babysit timeout (default 600)"},
 		},
 		"required": []string{"action"},
 	}
 }
 
 type githubInput struct {
-	Action string `json:"action"`
-	Title  string `json:"title"`
-	Body   string `json:"body"`
-	Base   string `json:"base"`
-	Head   string `json:"head"`
-	Draft  bool   `json:"draft"`
-	Number int    `json:"number"`
-	State  string `json:"state"`
-	Method string `json:"method"`
-	Name   string `json:"name"`
-	Labels string `json:"labels"`
-	Limit  int    `json:"limit"`
+	Action      string `json:"action"`
+	Title       string `json:"title"`
+	Body        string `json:"body"`
+	Base        string `json:"base"`
+	Head        string `json:"head"`
+	Draft       bool   `json:"draft"`
+	Number      int    `json:"number"`
+	State       string `json:"state"`
+	Method      string `json:"method"`
+	Name        string `json:"name"`
+	Labels      string `json:"labels"`
+	Limit       int    `json:"limit"`
+	Reviewers   string `json:"reviewers"`
+	SHA         string `json:"sha"`
+	IntervalSec int    `json:"interval_sec"`
+	TimeoutSec  int    `json:"timeout_sec"`
 }
 
 func (g *GitHubTool) Execute(input json.RawMessage) Result {
+	return g.ExecuteStream(input, nil)
+}
+
+// ExecuteStream supports progress for babysit polls.
+func (g *GitHubTool) ExecuteStream(input []byte, progress ProgressFunc) Result {
 	if g.Client == nil {
 		return Result{Error: "GitHub client not configured"}
 	}
@@ -93,7 +96,11 @@ func (g *GitHubTool) Execute(input json.RawMessage) Result {
 	if err := json.Unmarshal(input, &in); err != nil {
 		return Result{Error: fmt.Sprintf("invalid: %v", err)}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	timeout := 90 * time.Second
+	if strings.EqualFold(in.Action, "babysit") {
+		timeout = 20 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	action := strings.ToLower(strings.TrimSpace(in.Action))
@@ -121,6 +128,23 @@ func (g *GitHubTool) Execute(input json.RawMessage) Result {
 			return Result{Error: "number required for pr_merge"}
 		}
 		out, err = g.Client.MergePR(ctx, in.Number, in.Method)
+	case "pr_diff":
+		out, err = g.Client.PRDiff(ctx, in.Number)
+	case "pr_comment":
+		out, err = g.Client.CommentOnPR(ctx, in.Number, in.Body)
+	case "pr_review_request":
+		var revs []string
+		for _, r := range strings.Split(in.Reviewers, ",") {
+			r = strings.TrimSpace(r)
+			if r != "" {
+				revs = append(revs, r)
+			}
+		}
+		out, err = g.Client.RequestReviewers(ctx, in.Number, revs)
+	case "pr_ready":
+		out, err = g.Client.ReadyPR(ctx, in.Number)
+	case "pr_commits":
+		out, err = g.Client.PRCommits(ctx, in.Number)
 	case "issue_list":
 		issues, e := g.Client.ListIssues(ctx, in.State, in.Limit)
 		err = e
@@ -129,23 +153,54 @@ func (g *GitHubTool) Execute(input json.RawMessage) Result {
 		}
 	case "issue_view":
 		if in.Number <= 0 {
-			return Result{Error: "number required for issue_view"}
+			return Result{Error: "number required"}
 		}
 		out, err = g.Client.ViewIssue(ctx, in.Number)
 	case "issue_create":
 		var labels []string
-		if in.Labels != "" {
-			for _, l := range strings.Split(in.Labels, ",") {
-				l = strings.TrimSpace(l)
-				if l != "" {
-					labels = append(labels, l)
-				}
+		for _, l := range strings.Split(in.Labels, ",") {
+			l = strings.TrimSpace(l)
+			if l != "" {
+				labels = append(labels, l)
 			}
 		}
 		out, err = g.Client.CreateIssue(ctx, in.Title, in.Body, labels)
+	case "issue_comment":
+		out, err = g.Client.CommentOnIssue(ctx, in.Number, in.Body)
 	case "checks":
 		out, err = g.Client.Checks(ctx, in.Number)
+	case "babysit_once":
+		cs, e := g.Client.BabysitOnce(ctx, in.Number)
+		err = e
+		if err == nil {
+			out = gh.FormatCheckStatus(cs)
+		}
+	case "babysit":
+		interval := time.Duration(in.IntervalSec) * time.Second
+		to := time.Duration(in.TimeoutSec) * time.Second
+		if progress != nil {
+			progress(fmt.Sprintf("babysitting PR checks (pr=%d)…", in.Number))
+		}
+		cs, e := g.Client.Babysit(ctx, gh.BabysitOptions{
+			PRNumber: in.Number,
+			Interval: interval,
+			Timeout:  to,
+			OnProgress: func(st gh.CheckStatus) {
+				if progress != nil {
+					progress(st.Summary)
+				}
+			},
+		})
+		out = gh.FormatCheckStatus(cs)
+		err = e
+		// still return body when failed so agent can read logs
+		if err != nil {
+			return Result{Success: false, Error: err.Error(), Output: out}
+		}
 	case "push":
+		if progress != nil {
+			progress("git push…")
+		}
 		out, err = g.Client.Push(ctx, true)
 	case "pull":
 		out, err = g.Client.Pull(ctx)
@@ -157,8 +212,10 @@ func (g *GitHubTool) Execute(input json.RawMessage) Result {
 			n = 15
 		}
 		out, err = g.Client.LogRecent(ctx, n)
+	case "commit_prs":
+		out, err = g.Client.LinkCommitPR(ctx, in.SHA)
 	default:
-		return Result{Error: fmt.Sprintf("unknown action %q — use auth_status|repo_view|pr_list|pr_view|pr_create|pr_merge|issue_list|issue_view|issue_create|checks|push|pull|branch_create|log", in.Action)}
+		return Result{Error: fmt.Sprintf("unknown action %q", in.Action)}
 	}
 	if err != nil {
 		return Result{Success: false, Error: err.Error(), Output: out}

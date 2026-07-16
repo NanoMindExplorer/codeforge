@@ -15,6 +15,7 @@ import (
     "time"
 
     "github.com/codeforge/tui/internal/diff"
+    "github.com/codeforge/tui/internal/workspace"
 )
 
 type Result struct {
@@ -41,17 +42,7 @@ type Tool interface {
 // result that escapes workdir, as a lightweight sandbox against the AI
 // reading or writing files outside the project.
 func resolvePath(workdir, path string) (string, error) {
-    full := path
-    if !filepath.IsAbs(full) {
-        full = filepath.Join(workdir, full)
-    }
-    full = filepath.Clean(full)
-
-    rel, err := filepath.Rel(workdir, full)
-    if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-        return "", fmt.Errorf("path %q is outside the project directory", path)
-    }
-    return full, nil
+    return workspace.Resolve(workdir, path)
 }
 
 // ---------------------------------------------------------------------
@@ -291,10 +282,19 @@ func (g *GrepSearch) Execute(input json.RawMessage) Result {
             return fs.SkipAll
         }
         if d.IsDir() {
-            switch d.Name() {
-            case ".git", "node_modules", "vendor", "dist", "build":
-                return filepath.SkipDir
+            if ws := workspace.Get(); ws != nil {
+                if ws.ShouldSkipDir(d.Name()) {
+                    return filepath.SkipDir
+                }
+            } else {
+                switch d.Name() {
+                case ".git", "node_modules", "vendor", "dist", "build":
+                    return filepath.SkipDir
+                }
             }
+            return nil
+        }
+        if ws := workspace.Get(); ws != nil && ws.ShouldSkipFile(d.Name()) {
             return nil
         }
         if in.Glob != "" {
@@ -425,9 +425,13 @@ type Registry struct {
 
 func NewRegistry(workDir string) *Registry {
     r := &Registry{tools: make(map[string]Tool)}
+    staged := NewStagedWriter(workDir)
     r.Register(&FileReader{WorkDir: workDir})
     // StagedWriter gates writes in Plan mode (default); Act mode writes immediately.
-    r.Register(NewStagedWriter(workDir))
+    r.Register(staged)
+    // Surgical edits (prefer over full-file write)
+    r.Register(&SearchReplace{WorkDir: workDir, Staged: staged})
+    r.Register(&ApplyPatch{WorkDir: workDir, Staged: staged})
     r.Register(&DirLister{WorkDir: workDir})
     r.Register(&GrepSearch{WorkDir: workDir})
     r.Register(&ShellExec{WorkDir: workDir})

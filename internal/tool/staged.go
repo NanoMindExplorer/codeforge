@@ -116,6 +116,29 @@ func (s *StagedWriter) RejectAll() {
 	}
 }
 
+// Stage records a pending write without going through Execute JSON.
+// Used by search_replace / apply_patch in Plan mode.
+func (s *StagedWriter) Stage(absPath, relPath, oldContent, newContent string) {
+	d := diff.Unified(relPath, oldContent, newContent)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, p := range s.pending {
+		if p.Path == absPath {
+			s.pending[i] = PendingPatch{
+				Path: absPath, RelPath: relPath,
+				OldContent: oldContent, NewContent: newContent,
+				Diff: d, Accepted: true,
+			}
+			return
+		}
+	}
+	s.pending = append(s.pending, PendingPatch{
+		Path: absPath, RelPath: relPath,
+		OldContent: oldContent, NewContent: newContent,
+		Diff: d, Accepted: true,
+	})
+}
+
 // AppliedFile holds info about a file just written (for checkpoint).
 type AppliedFile struct {
 	AbsPath    string
@@ -136,11 +159,18 @@ func (s *StagedWriter) ApplyAccepted() (applied []AppliedFile, combinedDiff stri
 			remaining = append(remaining, p)
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(p.Path), 0755); err != nil {
-			return applied, combinedDiff, fmt.Errorf("mkdir %s: %w", p.Path, err)
-		}
-		if err := os.WriteFile(p.Path, []byte(p.NewContent), 0644); err != nil {
-			return applied, combinedDiff, fmt.Errorf("write %s: %w", p.Path, err)
+		// Empty new content with non-empty old = delete file
+		if p.NewContent == "" && p.OldContent != "" {
+			if err := os.Remove(p.Path); err != nil && !os.IsNotExist(err) {
+				return applied, combinedDiff, fmt.Errorf("delete %s: %w", p.Path, err)
+			}
+		} else {
+			if err := os.MkdirAll(filepath.Dir(p.Path), 0755); err != nil {
+				return applied, combinedDiff, fmt.Errorf("mkdir %s: %w", p.Path, err)
+			}
+			if err := os.WriteFile(p.Path, []byte(p.NewContent), 0644); err != nil {
+				return applied, combinedDiff, fmt.Errorf("write %s: %w", p.Path, err)
+			}
 		}
 		applied = append(applied, AppliedFile{
 			AbsPath:    p.Path,
@@ -161,7 +191,7 @@ func (s *StagedWriter) Execute(input json.RawMessage) Result {
 	if in.Path == "" {
 		return Result{Error: "path required"}
 	}
-	path, err := resolvePath(s.inner.WorkDir, in.Path)
+	path, err := resolvePathWS(s.inner.WorkDir, in.Path)
 	if err != nil {
 		return Result{Error: err.Error()}
 	}
@@ -170,7 +200,7 @@ func (s *StagedWriter) Execute(input json.RawMessage) Result {
 	if data, err := os.ReadFile(path); err == nil {
 		oldContent = string(data)
 	}
-	rel, _ := filepath.Rel(s.inner.WorkDir, path)
+	rel := relDisplay(s.inner.WorkDir, path)
 	d := diff.Unified(rel, oldContent, in.Content)
 
 	s.mu.Lock()

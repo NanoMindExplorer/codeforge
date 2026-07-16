@@ -30,7 +30,10 @@ type ContextModel struct {
 func NewContextModel(workdir string) ContextModel {
 	c := ContextModel{
 		workdir: workdir,
-		tools:   []string{"read_file", "write_file", "list_dir", "grep_search", "run_command", "github"},
+		tools: []string{
+			"read_file", "write_file", "search_replace", "apply_patch",
+			"list_dir", "grep_search", "run_command", "github",
+		},
 	}
 	c.RefreshFiles(nil)
 	return c

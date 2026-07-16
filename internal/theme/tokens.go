@@ -222,6 +222,8 @@ func ToolIcon(name string) string {
 		return "📁"
 	case "github":
 		return "🐙"
+	case "search_replace", "apply_patch":
+		return "🩹"
 	default:
 		return "🔧"
 	}

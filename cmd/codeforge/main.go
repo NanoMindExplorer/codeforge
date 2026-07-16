@@ -18,11 +18,12 @@ import (
 	"github.com/codeforge/tui/internal/theme"
 	"github.com/codeforge/tui/internal/tool"
 	"github.com/codeforge/tui/internal/tui"
+	"github.com/codeforge/tui/internal/workspace"
 )
 
 const (
 	ProjectName    = "CodeForge TUI"
-	ProjectVersion = "0.4.0"
+	ProjectVersion = "0.5.0"
 	ProjectAuthor  = "NanoMind"
 	ProjectYear    = "2026"
 	ProjectLicense = "Apache 2.0"
@@ -98,6 +99,20 @@ func main() {
 	} else if cfg.DefaultProvider != "" {
 		_ = provReg.Switch(cfg.DefaultProvider)
 	}
+
+	// Multi-root workspace (monorepo)
+	ws := workspace.New(workdir)
+	for _, root := range cfg.Workspace.ExtraRoots {
+		if err := ws.AddRoot(root, ""); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: workspace root %s: %v\n", root, err)
+		} else {
+			fmt.Fprintf(os.Stderr, "✓ Workspace root: %s\n", root)
+		}
+	}
+	if len(cfg.Workspace.IgnoreDirs) > 0 {
+		ws.SetIgnoreDirs(cfg.Workspace.IgnoreDirs)
+	}
+	workspace.SetGlobal(ws)
 
 	toolReg := tool.NewRegistry(workdir)
 	if cfg.Permissions.RequireConfirmWrite {
