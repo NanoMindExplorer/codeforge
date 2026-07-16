@@ -29,8 +29,16 @@ type Session struct {
 	Preview   string             `json:"preview"`
 }
 
-// Dir returns ~/.codeforge/sessions
+// Dir returns the sessions directory.
+// Override with CODEFORGE_SESSIONS_DIR for shared/SSH-synced storage
+// (e.g. network mount, syncthing folder).
 func Dir() (string, error) {
+	if d := os.Getenv("CODEFORGE_SESSIONS_DIR"); d != "" {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			return "", err
+		}
+		return d, nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err

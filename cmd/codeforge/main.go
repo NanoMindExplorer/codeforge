@@ -6,38 +6,58 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/codeforge/tui/internal/app"
 	"github.com/codeforge/tui/internal/config"
-	"github.com/codeforge/tui/internal/git"
-	"github.com/codeforge/tui/internal/index"
-	"github.com/codeforge/tui/internal/provider"
-	"github.com/codeforge/tui/internal/research"
-	"github.com/codeforge/tui/internal/rules"
+	"github.com/codeforge/tui/internal/headless"
+	"github.com/codeforge/tui/internal/session"
 	"github.com/codeforge/tui/internal/theme"
-	"github.com/codeforge/tui/internal/tool"
 	"github.com/codeforge/tui/internal/tui"
-	"github.com/codeforge/tui/internal/workspace"
 )
 
 const (
 	ProjectName    = "CodeForge TUI"
-	ProjectVersion = "0.6.0"
+	ProjectVersion = "0.7.0"
 	ProjectAuthor  = "NanoMind"
 	ProjectYear    = "2026"
 	ProjectLicense = "Apache 2.0"
 )
 
 func main() {
-	// Flags
+	args := os.Args[1:]
+	if len(args) == 0 {
+		runTUI(args)
+		return
+	}
+
+	switch args[0] {
+	case "agent", "run":
+		os.Exit(runAgentCLI(args[1:]))
+	case "session":
+		os.Exit(runSessionCLI(args[1:]))
+	case "version", "--version", "-v":
+		fmt.Printf("codeforge %s\n", ProjectVersion)
+	case "help", "--help", "-h":
+		printUsage()
+	default:
+		// flags or workdir → TUI
+		runTUI(args)
+	}
+}
+
+func runTUI(args []string) {
 	noMotion := false
 	skipWizard := false
 	var pathArgs []string
-	for _, a := range os.Args[1:] {
+	for _, a := range args {
 		switch a {
 		case "--no-motion":
 			noMotion = true
@@ -61,11 +81,7 @@ func main() {
 		theme.SetMotion(false)
 	}
 
-	workdir, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	workdir, _ := os.Getwd()
 	if len(pathArgs) > 0 {
 		if abs, err := filepath.Abs(pathArgs[0]); err == nil {
 			if info, err := os.Stat(abs); err == nil && info.IsDir() {
@@ -74,113 +90,33 @@ func main() {
 		}
 	}
 
-	cfg, err := config.Load()
-	if err != nil {
+	// Wizard before bootstrap if needed
+	cfg, _ := config.Load()
+	if cfg == nil {
 		cfg = config.Default()
 	}
-	_ = config.SaveExample()
-
-	provReg := provider.NewRegistry()
-	registerProviders(provReg)
-
-	// First-run wizard if no keys and not skipped
-	if !skipWizard && needsWizard(provReg) {
-		runWizard(provReg)
-		// re-register after env may have been set (wizard only guides)
-		provReg = provider.NewRegistry()
-		registerProviders(provReg)
+	if !skipWizard && needsWizardQuick() {
+		runWizard()
 	}
 
-	if _, err := provReg.Current(); err != nil {
-		// last resort empty claude so TUI still opens
-		_ = provReg.Register(provider.NewClaudeProvider("", "claude-sonnet-4-20250514"))
-	}
-
-	// Prefer Gemini free tier when available
-	if os.Getenv("GEMINI_API_KEY") != "" {
-		_ = provReg.Switch("gemini")
-	} else if cfg.DefaultProvider != "" {
-		_ = provReg.Switch(cfg.DefaultProvider)
-	}
-
-	// Multi-root workspace (monorepo)
-	ws := workspace.New(workdir)
-	for _, root := range cfg.Workspace.ExtraRoots {
-		if err := ws.AddRoot(root, ""); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: workspace root %s: %v\n", root, err)
-		} else {
-			fmt.Fprintf(os.Stderr, "✓ Workspace root: %s\n", root)
-		}
-	}
-	if len(cfg.Workspace.IgnoreDirs) > 0 {
-		ws.SetIgnoreDirs(cfg.Workspace.IgnoreDirs)
-	}
-	workspace.SetGlobal(ws)
-
-	// Project rules (AGENTS.md, …)
-	var extra []string
-	for _, r := range ws.ListRoots() {
-		if r.Path != workdir {
-			extra = append(extra, r.Path)
-		}
-	}
-	rb := rules.Load(workdir, extra...)
-	if len(rb.Paths) > 0 {
-		fmt.Fprintf(os.Stderr, "✓ %s\n", rb.Summary())
-	}
-
-	// Offline codebase index (background-friendly sync build)
-	if idx, err := index.Build(workdir); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: index: %v\n", err)
-	} else {
-		index.SetGlobal(idx)
-		f, s := idx.Stats()
-		fmt.Fprintf(os.Stderr, "✓ Codebase index: %d files, %d symbols\n", f, s)
-	}
-
-	toolReg := tool.NewRegistry(workdir)
-	toolReg.Register(&research.Tool{WorkDir: workdir, Parent: toolReg, ProvReg: provReg})
-		if cfg.Permissions.RequireConfirmWrite {
-		if sw := toolReg.GetStagedWriter(); sw != nil {
-			sw.SetMode(tool.ModePlan)
-		}
-	} else {
-		if sw := toolReg.GetStagedWriter(); sw != nil {
-			sw.SetMode(tool.ModeAct)
-		}
-	}
-
-	// MCP servers from config
-	if len(cfg.MCP.Servers) > 0 {
-		var servers []provider.MCPServerConfig
-		for _, s := range cfg.MCP.Servers {
-			servers = append(servers, provider.MCPServerConfig{
-				Name: s.Name, Command: s.Command, Args: s.Args, Env: s.Env,
-			})
-		}
-		for _, line := range tool.RegisterMCPServers(toolReg, servers) {
-			fmt.Fprintf(os.Stderr, "✓ %s\n", line)
-		}
-	}
-
-	repo, err := git.Open(workdir)
+	rt, err := app.Bootstrap(app.Options{WorkDir: workdir})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: git: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	if rt.Tele != nil {
+		rt.Tele.Event("tui_start", nil)
+		defer rt.Tele.Flush()
 	}
 
-	if cur, err := provReg.Current(); err == nil {
+	if cur, err := rt.ProvReg.Current(); err == nil {
 		if err := cur.ValidateConfig(); err != nil {
 			fmt.Fprintf(os.Stderr, "\n⚠️  Provider config: %v\n", err)
-			fmt.Fprintf(os.Stderr, "   Gemini free: https://aistudio.google.com/apikey\n")
-			fmt.Fprintf(os.Stderr, "   export GEMINI_API_KEY=...\n\n")
+			fmt.Fprintf(os.Stderr, "   Gemini free: https://aistudio.google.com/apikey\n\n")
 		}
 	}
 
-	if cfg.Budget.MaxCostUSD > 0 {
-		fmt.Fprintf(os.Stderr, "✓ Budget cap: $%.2f\n", cfg.Budget.MaxCostUSD)
-	}
-
-	model := tui.New(cfg, provReg, toolReg, repo, workdir)
+	model := tui.New(rt.Cfg, rt.ProvReg, rt.ToolReg, rt.GitRepo, rt.WorkDir)
 	printBanner()
 
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
@@ -190,90 +126,174 @@ func main() {
 	}
 }
 
-func registerProviders(reg *provider.Registry) {
-	if k := os.Getenv("GEMINI_API_KEY"); k != "" {
-		_ = reg.Register(provider.NewGeminiProvider(k, "gemini-2.5-flash"))
-		fmt.Fprintf(os.Stderr, "✓ Gemini registered\n")
+func runAgentCLI(args []string) int {
+	opt := headless.Options{
+		JSON:    false,
+		Act:     true,
+		Timeout: 10 * time.Minute,
+		MaxIter: 12,
 	}
-	if k := os.Getenv("ANTHROPIC_API_KEY"); k != "" {
-		_ = reg.Register(provider.NewClaudeProvider(k, "claude-sonnet-4-20250514"))
-		fmt.Fprintf(os.Stderr, "✓ Claude registered\n")
+	var taskParts []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch a {
+		case "--json", "-j":
+			opt.JSON = true
+			opt.Quiet = true
+		case "--plan":
+			opt.Plan = true
+			opt.Act = false
+		case "--act":
+			opt.Act = true
+			opt.Plan = false
+		case "--quiet", "-q":
+			opt.Quiet = true
+		case "--workdir", "-C":
+			if i+1 < len(args) {
+				i++
+				opt.WorkDir = args[i]
+			}
+		case "--timeout":
+			if i+1 < len(args) {
+				i++
+				if sec, err := strconv.Atoi(args[i]); err == nil {
+					opt.Timeout = time.Duration(sec) * time.Second
+				}
+			}
+		case "--max-iter":
+			if i+1 < len(args) {
+				i++
+				opt.MaxIter, _ = strconv.Atoi(args[i])
+			}
+		case "--help", "-h":
+			fmt.Print(agentUsage())
+			return 0
+		default:
+			if strings.HasPrefix(a, "-") {
+				fmt.Fprintf(os.Stderr, "unknown flag %s\n", a)
+				return 2
+			}
+			taskParts = append(taskParts, a)
+		}
 	}
-	if k := os.Getenv("OPENAI_API_KEY"); k != "" {
-		_ = reg.Register(provider.NewOpenAIProvider(k, "gpt-4o-mini"))
-		fmt.Fprintf(os.Stderr, "✓ OpenAI registered\n")
+	opt.Task = strings.Join(taskParts, " ")
+	if opt.Task == "" {
+		st, _ := os.Stdin.Stat()
+		if (st.Mode() & os.ModeCharDevice) == 0 {
+			data, err := io.ReadAll(os.Stdin)
+			if err == nil && len(data) > 0 {
+				opt.Task = strings.TrimSpace(string(data))
+			}
+		}
 	}
-	// Ollama optional — only if reachable
-	ollama := provider.NewOllamaProvider("")
-	if err := ollama.ValidateConfig(); err == nil {
-		_ = reg.Register(ollama)
-		fmt.Fprintf(os.Stderr, "✓ Ollama registered (local)\n")
+	if strings.TrimSpace(opt.Task) == "" {
+		fmt.Fprintln(os.Stderr, "usage: codeforge agent [flags] <task>")
+		fmt.Fprint(os.Stderr, agentUsage())
+		return 2
+	}
+	return headless.RunCLI(opt)
+}
+
+func runSessionCLI(args []string) int {
+	if len(args) == 0 {
+		fmt.Fprint(os.Stderr, sessionUsage())
+		return 2
+	}
+	switch args[0] {
+	case "list":
+		list, err := session.List(30)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		for _, s := range list {
+			fmt.Printf("%s  %s\n  %s\n", s.ID, s.Slug, s.Preview)
+		}
+		return 0
+	case "export":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "usage: codeforge session export <id> [dest.json]")
+			return 2
+		}
+		dest := args[1] + ".json"
+		if len(args) >= 3 {
+			dest = args[2]
+		}
+		if err := session.Export(args[1], dest); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		fmt.Println("exported", dest)
+		return 0
+	case "import":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "usage: codeforge session import <file.json>")
+			return 2
+		}
+		s, err := session.Import(args[1])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		fmt.Println("imported", s.ID)
+		return 0
+	case "export-all":
+		dest := "codeforge-sessions"
+		if len(args) >= 2 {
+			dest = args[1]
+		}
+		n, err := session.ExportAll(dest)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		fmt.Printf("exported %d sessions → %s\n", n, dest)
+		return 0
+	default:
+		fmt.Fprint(os.Stderr, sessionUsage())
+		return 2
 	}
 }
 
-func needsWizard(reg *provider.Registry) bool {
-	// no valid provider config
-	cur, err := reg.Current()
-	if err != nil {
-		return true
+func needsWizardQuick() bool {
+	if os.Getenv("GEMINI_API_KEY") != "" || os.Getenv("ANTHROPIC_API_KEY") != "" || os.Getenv("OPENAI_API_KEY") != "" {
+		return false
 	}
-	return cur.ValidateConfig() != nil
+	return true
 }
 
-func runWizard(reg *provider.Registry) {
+func runWizard() {
 	r := bufio.NewReader(os.Stdin)
 	fmt.Println()
 	fmt.Println("╔══════════════════════════════════════════════════════╗")
 	fmt.Println("║  CodeForge — First Run Setup                         ║")
 	fmt.Println("╚══════════════════════════════════════════════════════╝")
 	fmt.Println()
-
-	// Screen 1: API keys
-	fmt.Println("① API Keys terdeteksi:")
+	fmt.Println("① API keys / GitHub:")
 	show := func(name, env string) {
 		if os.Getenv(env) != "" {
-			fmt.Printf("   ✓ %s (%s)\n", name, env)
+			fmt.Printf("   ✓ %s\n", name)
 		} else {
 			fmt.Printf("   ○ %s — set %s\n", name, env)
 		}
 	}
-	show("Gemini (gratis)", "GEMINI_API_KEY")
+	show("Gemini", "GEMINI_API_KEY")
 	show("Claude", "ANTHROPIC_API_KEY")
 	show("OpenAI", "OPENAI_API_KEY")
-	fmt.Println("   ○ Ollama lokal — jalankan `ollama serve`")
-	fmt.Println()
-	// GitHub
-	if os.Getenv("GITHUB_TOKEN") != "" || os.Getenv("GH_TOKEN") != "" {
-		fmt.Println("   ✓ GitHub token (GITHUB_TOKEN / GH_TOKEN)")
-	} else {
-		fmt.Println("   ○ GitHub — run `gh auth login` or set GITHUB_TOKEN")
-	}
-	fmt.Println()
-	fmt.Println("   Get Gemini free key: https://aistudio.google.com/apikey")
-	fmt.Print("   Enter to continue (or paste GEMINI key now): ")
+	show("GitHub token", "GITHUB_TOKEN")
+	fmt.Println("   Get Gemini: https://aistudio.google.com/apikey")
+	fmt.Print("   Enter (or paste GEMINI key): ")
 	line, _ := r.ReadString('\n')
 	line = strings.TrimSpace(line)
 	if strings.HasPrefix(line, "AIza") || len(line) > 20 {
 		_ = os.Setenv("GEMINI_API_KEY", line)
 		fmt.Println("   ✓ GEMINI_API_KEY set for this session")
 	}
-
-	// Screen 2: provider pick (informational)
 	fmt.Println()
-	fmt.Println("② Default provider: Gemini if key present, else Claude/OpenAI/Ollama")
-	fmt.Println("   Switch later with /provider and /model")
-	fmt.Print("   Enter…")
-	_, _ = r.ReadString('\n')
-
-	// Screen 3: keybindings + GitHub
-	fmt.Println()
-	fmt.Println("③ Essential keys & GitHub:")
-	fmt.Println("   i          chat          Ctrl+K   command palette")
-	fmt.Println("   /act task  agent mode    Shift+P  Plan ↔ Act")
-	fmt.Println("   /gh auth   GitHub        /pr /push /pull /issue")
-	fmt.Println("   @          mention file  ?        help   q  quit")
-	fmt.Println()
-	fmt.Print("   Enter to open CodeForge…")
+	fmt.Println("② Headless CI mode:  codeforge agent --json \"fix tests\"")
+	fmt.Println("   Plugins dir:      ~/.codeforge/plugins/")
+	fmt.Println("   Sessions sync:    CODEFORGE_SESSIONS_DIR=/shared/path")
+	fmt.Print("   Enter to continue…")
 	_, _ = r.ReadString('\n')
 }
 
@@ -281,8 +301,7 @@ func printBanner() {
 	fmt.Printf(`
 ╔══════════════════════════════════════════════════════════════╗
 ║   CodeForge TUI v%s  |  by %s  |  %s                 ║
-║   Tier-2 · Rules · Index · MCP · Research · Budget           ║
-║   Gemini · Claude · OpenAI · Ollama · GitHub                 ║
+║   Tier-3 · Headless · Plugins · Sessions · Multi-Provider    ║
 ╚══════════════════════════════════════════════════════════════╝
 `, ProjectVersion, ProjectAuthor, ProjectYear)
 }
@@ -291,25 +310,55 @@ func printUsage() {
 	fmt.Printf(`CodeForge TUI v%s — Terminal AI Coding Companion
 
 Usage:
-  codeforge [workdir] [flags]
+  codeforge [workdir] [flags]           Interactive TUI
+  codeforge agent [flags] <task>        Headless agent (CI/scripts)
+  codeforge session <cmd>               Export / import sessions
+  codeforge version
 
-Flags:
-  --no-motion      Disable animations (slow SSH / Termux)
-  --skip-wizard    Skip first-run setup
-  -h, --help       Show help
-  -v, --version    Show version
+TUI flags:
+  --no-motion       Disable animations
+  --skip-wizard     Skip first-run setup
+  -h, --help        Help
+  -v, --version     Version
 
+%s
+%s
 Env:
   GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY
-  OPENAI_BASE_URL, OLLAMA_HOST, OLLAMA_MODEL
-  GITHUB_TOKEN / GH_TOKEN   (or: gh auth login)
-  CODEFORGE_THEME=aurora|light
-  CODEFORGE_NO_MOTION=1
-  NERD_FONT=1
+  GITHUB_TOKEN / GH_TOKEN
+  CODEFORGE_SESSIONS_DIR   shared session storage (SSH/sync)
+  CODEFORGE_PLUGIN_DIR     extra plugins path
+  CODEFORGE_TELEMETRY=1    opt-in local telemetry
+  CODEFORGE_THEME, CODEFORGE_NO_MOTION, CODEFORGE_PLAIN_MD
 
-GitHub inside TUI:
-  /gh auth · /push · /pull · /pr · /issue · /commit
-  Agent tool: github (pr_create, checks, …)
-
-`, ProjectVersion)
+`, ProjectVersion, agentUsage(), sessionUsage())
 }
+
+func agentUsage() string {
+	return `Agent (headless):
+  codeforge agent [flags] <task>
+  codeforge agent --json "run go test and fix failures"
+  echo "summarize README" | codeforge agent --json
+
+  --json, -j       Machine-readable JSON result (exit 1 on failure)
+  --plan           Stage writes (Plan mode)
+  --act            Apply writes immediately (default)
+  --workdir, -C    Project directory
+  --timeout SEC    Overall timeout (default 600)
+  --max-iter N     Agent iterations (default 12)
+  --quiet, -q      Less human chatter
+`
+}
+
+func sessionUsage() string {
+	return `Sessions:
+  codeforge session list
+  codeforge session export <id> [file.json]
+  codeforge session import <file.json>
+  codeforge session export-all [dir]
+
+  Shared across machines:
+    export CODEFORGE_SESSIONS_DIR=/path/to/sync/sessions
+`
+}
+

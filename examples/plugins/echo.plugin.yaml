@@ -1,0 +1,15 @@
+# Example CodeForge plugin — install to ~/.codeforge/plugins/echo.plugin.yaml
+# Receives tool JSON on stdin, prints to stdout.
+name: echo
+description: Echo plugin arguments (demo)
+command: /bin/sh
+args: ["-c", "cat; echo"]
+workdir_relative: true
+timeout_sec: 10
+input_schema:
+  type: object
+  properties:
+    message:
+      type: string
+      description: Text to echo
+  required: [message]

@@ -19,6 +19,20 @@ type Config struct {
     Workspace       WorkspaceConfig     `mapstructure:"workspace"`
     Budget          BudgetConfig        `mapstructure:"budget"`
     MCP             MCPConfig           `mapstructure:"mcp"`
+    Plugins         PluginsConfig       `mapstructure:"plugins"`
+    Telemetry       TelemetryConfig     `mapstructure:"telemetry"`
+}
+
+// PluginsConfig lists extra plugin search directories.
+type PluginsConfig struct {
+    Dirs []string `mapstructure:"dirs"`
+}
+
+// TelemetryConfig is privacy-first opt-in analytics (default off).
+type TelemetryConfig struct {
+    Enabled   bool   `mapstructure:"enabled"`
+    Endpoint  string `mapstructure:"endpoint"`
+    LocalOnly bool   `mapstructure:"local_only"`
 }
 
 // BudgetConfig limits spend and can block further agent calls.
@@ -141,6 +155,11 @@ func Default() *Config {
             WarnAtUSD:  0,
         },
         MCP: MCPConfig{Servers: nil},
+        Plugins: PluginsConfig{Dirs: nil},
+        Telemetry: TelemetryConfig{
+            Enabled:   false,
+            LocalOnly: true,
+        },
     }
 }
 

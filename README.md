@@ -12,7 +12,7 @@
 | **Year** | 2026 |
 | **License** | Apache License 2.0 |
 | **Codename** | Neo-Forge |
-| **Version** | `v0.6.0` |
+| **Version** | `v0.7.0` |
 
 CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in your terminal: stream chat, call tools on your project, review file writes safely (Plan mode), and **integrate with GitHub** (PRs, issues, checks, push/pull — the same class of workflows modern AI coding agents use) — without leaving the keyboard.
 
@@ -66,6 +66,10 @@ CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in y
 | **Budget** | `budget.max_cost_usd` hard-stop + status bar meter. |
 | **Secret redaction** | Strips keys/tokens/`.env` before model context. |
 | **Docs fetch** | `fetch_url` for public HTTPS (SSRF-safe). |
+| **Headless CI** | `codeforge agent --json "…"` for pipelines (exit codes + JSON). |
+| **Plugins** | YAML command plugins in `~/.codeforge/plugins/` → `plugin_*` tools. |
+| **Session sync** | Export/import CLI + `CODEFORGE_SESSIONS_DIR` shared storage. |
+| **Telemetry** | Opt-in, local JSONL, no prompts/source (privacy-first). |
 | **Theme** | Aurora Dark design tokens; light theme; optional `~/.codeforge/theme.yaml`. |
 | **Motion** | Breathing gradient borders, typewriter system messages, toast notifications. Disable with `--no-motion`. |
 | **Portable** | Pure Go, `CGO_ENABLED=0`, Termux / Android friendly (~21MB single binary). |
@@ -117,8 +121,8 @@ codeforge --no-motion
 ### Verify
 
 ```bash
-codeforge --version
-# → codeforge 0.6.0
+codeforge version
+# → codeforge 0.7.0
 ```
 
 ---
@@ -478,16 +482,84 @@ budget:
 
 When the cap is hit, chat/agent submits are blocked until config is raised.
 
+### Headless / CI mode (Tier-3)
+
+```bash
+# Human-readable
+codeforge agent "run go test ./... and fix failures"
+
+# Machine-readable (CI)
+codeforge agent --json --workdir . "run go test ./internal/... "
+echo $?   # 0 ok, 1 agent/tool failure
+
+# Plan mode (stage writes — not applied)
+codeforge agent --plan --json "propose a patch for README typos"
+```
+
+GitHub Actions example:
+
+```yaml
+- name: CodeForge agent
+  env:
+    GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  run: |
+    codeforge agent --json --act "run go test ./... and summarize failures" | tee agent-out.json
+```
+
+### Plugins
+
+Drop a YAML file into `~/.codeforge/plugins/` (see `examples/plugins/echo.plugin.yaml`):
+
+```yaml
+name: mytool
+description: Does a thing
+command: /path/to/binary
+args: []
+workdir_relative: true
+```
+
+Appears to the agent as `plugin_mytool`. Extra dirs: `plugins.dirs` in config or `CODEFORGE_PLUGIN_DIR`.
+
+### Session sync (laptop ↔ VPS)
+
+```bash
+export CODEFORGE_SESSIONS_DIR="$HOME/Sync/codeforge-sessions"
+codeforge session list
+codeforge session export 20260716-101500 ./backup.json
+codeforge session import ./backup.json
+codeforge session export-all ./all-sessions/
+```
+
+### Telemetry (opt-in)
+
+Default **off**. Enable local JSONL only:
+
+```yaml
+telemetry:
+  enabled: true
+  local_only: true
+```
+
+```bash
+export CODEFORGE_TELEMETRY=1
+# events → ~/.codeforge/telemetry/events.jsonl
+# never includes source code or prompt text
+```
+
 ### Architecture note
 
 ```text
-internal/rules/      AGENTS.md loader + prompt inject
+internal/app/        shared bootstrap (TUI + headless)
+internal/headless/   CI agent runner (--json)
+internal/plugin/     YAML command plugins
+internal/telemetry/  opt-in local analytics
+internal/rules/      AGENTS.md loader
 internal/index/      offline codebase index
-internal/secrets/    redaction before model
-internal/github/     gh CLI → REST; babysit + deep PR ops
+internal/redact/     secret redaction
+internal/github/     gh + babysit
 internal/workspace/  multi-root sandbox
-internal/tool/       research, codebase_search, diagnostics, fetch_url, mcp_*, patches
-internal/agent/      EventToolProgress
+internal/tool/       agent tools
+internal/agent/      tool loop + progress
 ```
 
 ---

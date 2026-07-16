@@ -1,11 +1,14 @@
 #!/usr/bin/env sh
 # CodeForge one-line installer
-# curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh | sh
+#   CODEFORGE_VERSION=v0.7.0 sh install.sh
+#   CODEFORGE_PLAIN=1 sh install.sh   # prefer plain (no glamour) asset when present
 set -e
 
 REPO="NanoMindExplorer/codeforge"
 BINARY="codeforge"
 VERSION="${CODEFORGE_VERSION:-latest}"
+PLAIN="${CODEFORGE_PLAIN:-0}"
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 arch=$(uname -m)
@@ -52,7 +55,12 @@ fi
 
 EXT="tar.gz"
 [ "$os" = "windows" ] && EXT="zip"
-ASSET="${BINARY}_${VERSION#v}_${os}_${arch}.${EXT}"
+VER_NUM="${VERSION#v}"
+if [ "$PLAIN" = "1" ]; then
+  ASSET="${BINARY}_${VER_NUM}_${os}_${arch}_plain.${EXT}"
+else
+  ASSET="${BINARY}_${VER_NUM}_${os}_${arch}.${EXT}"
+fi
 URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
 
 TMP=$(mktemp -d)
