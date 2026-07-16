@@ -2,6 +2,27 @@
 
 All notable changes to CodeForge are documented here.
 
+Generate a release blurb: `make release-notes` or `bash scripts/release-notes.sh`.
+
+## [1.8.4] — 2026-07-16
+
+### Packaging (W3 / R4–R6)
+
+- Termux: `contrib/termux/build.sh` + `package.sh` (TERMUX_PKG_VERSION from `VERSION`).
+- README / INSTALL **install matrix** (platform → command → `codeforge version`).
+- `scripts/release-notes.sh` + `make release-notes` for CHANGELOG section + commits.
+- `install.sh` embeds `ProjectVersion` from `VERSION` on source fallback; clearer post-install hints.
+- `check-version` validates termux package metadata emits current VERSION.
+
+### Onboarding docs (W3 / O6–O7)
+
+- Provider priority matrix in README + INSTALL.
+- Headless CI contract documented: exit 2 + `code: no_provider` JSON.
+
+### Dogfood
+
+- Batch D–E: `docs/dogfood/BATCH_DE.md` (Grok surface + ACP/IDE).
+
 ## [1.8.3] — 2026-07-16
 
 ### Onboarding (W2 / O1–O5)

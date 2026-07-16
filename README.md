@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev/)
-[![Version](https://img.shields.io/badge/version-v1.8.3-22D3EE)](https://github.com/NanoMindExplorer/codeforge)
+[![Version](https://img.shields.io/badge/version-v1.8.4-22D3EE)](https://github.com/NanoMindExplorer/codeforge)
 
 | | |
 |---|---|
@@ -12,7 +12,7 @@
 | **Year** | 2026 |
 | **License** | Apache License 2.0 |
 | **Codename** | Neo-Forge |
-| **Version** | `v1.8.3` |
+| **Version** | `v1.8.4` |
 
 CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in your terminal: stream chat, call tools on your project, review file writes safely (Plan mode), and **integrate with GitHub** (PRs, issues, checks, push/pull — the same class of workflows modern AI coding agents use) — without leaving the keyboard.
 
@@ -20,7 +20,7 @@ CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in y
 
 ## Grok 4.5 parity
 
-CodeForge **v1.8.3** is a **Grok Build TUI–compatible** coding agent with **Grok 4.5** (xAI) as a first-class model, full Grok tool names (`web_search`, `run_terminal_command`, `spawn_subagent`, …), plus ACP for IDEs.
+CodeForge **v1.8.4** is a **Grok Build TUI–compatible** coding agent with **Grok 4.5** (xAI) as a first-class model, full Grok tool names (`web_search`, `run_terminal_command`, `spawn_subagent`, …), plus ACP for IDEs.
 
 → Roadmap: **[docs/GROK_PARITY_ROADMAP.md](./docs/GROK_PARITY_ROADMAP.md)** · Dogfood: **[docs/DOGFOOD.md](./docs/DOGFOOD.md)** · ACP: **[docs/ACP.md](./docs/ACP.md)** · Reasoning: **[docs/REASONING.md](./docs/REASONING.md)** · Pager: **[docs/PAGER.md](./docs/PAGER.md)** · Skills: **[docs/SKILLS.md](./docs/SKILLS.md)** · Subagents: **[docs/SUBAGENTS.md](./docs/SUBAGENTS.md)**
 
@@ -100,6 +100,19 @@ CodeForge **v1.8.3** is a **Grok Build TUI–compatible** coding agent with **Gr
 
 ## Installation
 
+### Install matrix (R5)
+
+| Platform | Command | Verify |
+|----------|---------|--------|
+| **Linux / macOS** (binary) | `curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh \| sh` | `codeforge version` |
+| **From source** | `git clone … && make build && sudo mv codeforge /usr/local/bin/` | `codeforge version` = `VERSION` |
+| **Termux** | `bash contrib/termux/build.sh` or install.sh | `codeforge version` |
+| **Homebrew** (after release) | `brew install NanoMindExplorer/tap/codeforge` or in-repo `Formula/codeforge.rb` | `codeforge version` |
+| **Go** | `go install github.com/NanoMindExplorer/codeforge/cmd/codeforge@latest` | `codeforge version` |
+| **Windows** | GitHub Release `windows_amd64.zip` or WSL + install.sh | `codeforge version` |
+
+Pin a release: `CODEFORGE_VERSION=v1.8.4 sh install.sh`
+
 ### One-line installer
 
 ```bash
@@ -114,7 +127,7 @@ Detects OS/arch, prefers GitHub Releases, falls back to build-from-source when n
 git clone https://github.com/NanoMindExplorer/codeforge.git
 cd codeforge
 go mod tidy
-CGO_ENABLED=0 go build -ldflags="-s -w" -o codeforge ./cmd/codeforge/
+make build    # uses VERSION → -X main.ProjectVersion
 sudo mv codeforge /usr/local/bin/   # or: cp codeforge "$PREFIX/bin/" on Termux
 ```
 
@@ -124,17 +137,18 @@ sudo mv codeforge /usr/local/bin/   # or: cp codeforge "$PREFIX/bin/" on Termux
 pkg install -y golang git
 git clone https://github.com/NanoMindExplorer/codeforge.git
 cd codeforge
-CGO_ENABLED=0 go build -ldflags="-s -w" -o codeforge ./cmd/codeforge/
-cp codeforge "$PREFIX/bin/"
+bash contrib/termux/build.sh
 # Prefer no-motion on slow devices
 codeforge --no-motion
 ```
+
+See [`contrib/termux/README.md`](./contrib/termux/README.md).
 
 ### Verify
 
 ```bash
 codeforge version
-# → codeforge 1.1.1
+# → codeforge X.Y.Z  (must match the VERSION file / release tag)
 ```
 
 ---
@@ -142,6 +156,21 @@ codeforge version
 ## API keys & providers
 
 Set **at least one** environment variable before a productive session.
+
+### Provider priority (O6)
+
+When several keys are set, bootstrap picks in this order:
+
+| # | Condition | Active provider |
+|---|-----------|-----------------|
+| 1 | `XAI_API_KEY` or `GROK_API_KEY` | **grok** |
+| 2 | `GEMINI_API_KEY` | gemini |
+| 3 | `default_provider` in `~/.config/codeforge/config.yaml` | that name |
+| 4 | First registered (claude / openai / ollama) | varies |
+
+**Override:** `/provider grok|gemini|claude|openai|ollama`  
+**Inspect key source:** `/provider` (shows `env:…` / `config` / `missing`)  
+**Re-run setup:** `/setup`
 
 | Provider | Environment | Notes |
 |----------|-------------|--------|
@@ -944,6 +973,9 @@ bash scripts/update-formula.sh v1.8.2   # after release: fill Formula sha256
 | CI workflow | [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) |
 | Release workflow | [`.github/workflows/release.yml`](./.github/workflows/release.yml) |
 | Version SSOT | [`VERSION`](./VERSION) |
+| Homebrew formula | [`Formula/codeforge.rb`](./Formula/codeforge.rb) |
+| Termux package | [`contrib/termux/`](./contrib/termux/) |
+| Release notes helper | `make release-notes` |
 
 Release matrix (intended): `linux/amd64`, `linux/arm64` (Termux), `darwin/arm64`, `windows/amd64`.
 

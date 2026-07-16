@@ -4,6 +4,7 @@ Use this side-by-side with Grok Build TUI for a day of real work. Mark each item
 
 **Daily log:** copy [`docs/dogfood/TEMPLATE.md`](./dogfood/TEMPLATE.md) → `docs/dogfood/YYYY-MM-DD.md` and fill it after each session.  
 **Batch B–C (session + safety):** [`docs/dogfood/BATCH_BC.md`](./dogfood/BATCH_BC.md)  
+**Batch D–E (Grok surface + ACP):** [`docs/dogfood/BATCH_DE.md`](./dogfood/BATCH_DE.md)  
 **Local helper:** `make dogfood-help`
 
 ## Core coding loop

@@ -1,4 +1,4 @@
-.PHONY: test build vet check-version bump release-dry dogfood-help
+.PHONY: test build vet check-version bump release-dry release-notes dogfood-help termux-meta ci
 
 VERSION := $(shell tr -d '[:space:]' < VERSION 2>/dev/null || echo 0.0.0)
 
@@ -23,9 +23,19 @@ bump:
 release-dry:
 	goreleaser release --snapshot --clean --skip=publish
 
+# Print CHANGELOG section + commits for VERSION
+release-notes:
+	bash scripts/release-notes.sh $(VERSION)
+
+# Emit termux-packages metadata
+termux-meta:
+	bash contrib/termux/package.sh
+
 dogfood-help:
 	@echo "Dogfood log: docs/dogfood/ (see docs/DOGFOOD.md)"
 	@echo "Daily template: docs/dogfood/TEMPLATE.md"
+	@echo "Batch B–C: docs/dogfood/BATCH_BC.md"
+	@echo "Batch D–E: docs/dogfood/BATCH_DE.md"
 
 ci: check-version vet test build
 	@echo "CI local gate OK (v$(VERSION))"

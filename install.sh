@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # CodeForge one-line installer
 #   curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh | sh
-#   CODEFORGE_VERSION=v0.7.0 sh install.sh
+#   CODEFORGE_VERSION=v1.8.4 sh install.sh
 #   CODEFORGE_PLAIN=1 sh install.sh   # prefer plain (no glamour) asset when present
 set -e
 
@@ -35,7 +35,8 @@ if [ "$VERSION" = "latest" ]; then
     TMP=$(mktemp -d)
     git clone --depth 1 "https://github.com/${REPO}.git" "$TMP/codeforge"
     cd "$TMP/codeforge"
-    CGO_ENABLED=0 go build -ldflags="-s -w" -o "$BINARY" ./cmd/codeforge/
+    VER_FILE=$(tr -d '[:space:]' < VERSION 2>/dev/null || echo dev)
+    CGO_ENABLED=0 go build -ldflags="-s -w -X main.ProjectVersion=${VER_FILE}" -o "$BINARY" ./cmd/codeforge/
     DEST="${PREFIX:-/usr/local}/bin"
     if [ -n "$PREFIX" ] && [ -d "$PREFIX/bin" ]; then
       DEST="$PREFIX/bin"
@@ -89,4 +90,6 @@ else
   echo "✓ Installed $HOME/$BINARY — add to PATH"
 fi
 echo "Run: codeforge"
-echo "Get free Gemini key: https://aistudio.google.com/apikey"
+echo "Verify: codeforge version"
+echo "Keys: XAI_API_KEY (Grok) or GEMINI_API_KEY — https://console.x.ai / https://aistudio.google.com/apikey"
+echo "No key headless: codeforge agent --json \"hi\"  → exit 2 + code no_provider"

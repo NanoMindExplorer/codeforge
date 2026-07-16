@@ -69,6 +69,23 @@ if [[ -f Formula/codeforge.rb ]]; then
   check "Formula/codeforge.rb" "version \"${VER}\"" "Homebrew Formula version"
 fi
 
+# Termux packaging (reads VERSION at build time; ensure scripts exist)
+if [[ -f contrib/termux/build.sh ]]; then
+  echo "OK:   contrib/termux/build.sh present"
+else
+  echo "FAIL: contrib/termux/build.sh missing"
+  fail=1
+fi
+if [[ -f contrib/termux/package.sh ]]; then
+  # package.sh must print TERMUX_PKG_VERSION from VERSION file
+  if bash contrib/termux/package.sh 2>/dev/null | grep -q "TERMUX_PKG_VERSION=${VER}"; then
+    echo "OK:   contrib/termux/package.sh VERSION=${VER}"
+  else
+    echo "FAIL: contrib/termux/package.sh does not emit TERMUX_PKG_VERSION=${VER}"
+    fail=1
+  fi
+fi
+
 # Goreleaser uses tag {{.Version}} — just ensure file exists
 if [[ -f .goreleaser.yaml ]]; then
   echo "OK:   .goreleaser.yaml present"

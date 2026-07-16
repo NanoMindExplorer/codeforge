@@ -1,5 +1,15 @@
 # Install CodeForge TUI
 
+## Install matrix
+
+| Platform | Command | Verify |
+|----------|---------|--------|
+| Linux / macOS | `curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh \| sh` | `codeforge version` |
+| From source | `make build` | matches `VERSION` |
+| Termux | `bash contrib/termux/build.sh` | `codeforge version` |
+| Homebrew | `Formula/codeforge.rb` or tap after release | `codeforge version` |
+| Pin release | `CODEFORGE_VERSION=v1.8.4 sh install.sh` | tag match |
+
 ## One-liner
 
 ```bash
@@ -11,18 +21,20 @@ Detects OS/arch, prefers GitHub Releases, falls back to build-from-source.
 ## Termux (Android)
 
 ```bash
-pkg install -y golang git
-git clone https://github.com/NanoMindExplorer/codeforge.git
-cd codeforge
-go mod tidy
-CGO_ENABLED=0 go build -ldflags="-s -w" -o codeforge ./cmd/codeforge/
-cp codeforge $PREFIX/bin/
+pkg install -y golang git curl
+# recommended:
+curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh | sh
+# or from clone:
+git clone https://github.com/NanoMindExplorer/codeforge.git && cd codeforge
+bash contrib/termux/build.sh
 
-echo 'export GEMINI_API_KEY=AIzaSy...' >> ~/.bashrc
+echo 'export XAI_API_KEY=…' >> ~/.bashrc   # or GEMINI_API_KEY
 source ~/.bashrc
 codeforge --no-motion --compact   # recommended on slow devices
 # optional: export CODEFORGE_SSH_TUNE=1
 ```
+
+Full Termux notes: [`contrib/termux/README.md`](./contrib/termux/README.md).
 
 Upgrade from v0.8 sessions:
 
@@ -90,6 +102,31 @@ Skip with `--skip-wizard` (or `/setup` later inside the TUI).
 | 4 | Other registered providers (claude / openai / ollama) |
 
 Override anytime: `/provider <name>`. Inspect sources: `/provider` (no args).
+
+### Headless / CI (O7)
+
+```bash
+# Happy path
+export XAI_API_KEY=…   # or GEMINI_API_KEY
+codeforge agent --json "summarize this repo"
+
+# No provider configured → exit 2 + structured JSON
+unset XAI_API_KEY GROK_API_KEY GEMINI_API_KEY ANTHROPIC_API_KEY OPENAI_API_KEY
+codeforge agent --json "hi"
+# {
+#   "ok": false,
+#   "code": "no_provider",
+#   "error": "No AI provider configured",
+#   "hint": "Set XAI_API_KEY / GEMINI_API_KEY or run codeforge TUI /setup"
+# }
+echo $?   # → 2
+```
+
+| Exit | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Runtime / agent failure |
+| 2 | Config: `no_provider` or `auth` |
 
 ## Config
 

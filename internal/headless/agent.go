@@ -12,6 +12,7 @@ import (
 
 	"github.com/codeforge/tui/internal/agent"
 	"github.com/codeforge/tui/internal/app"
+	"github.com/codeforge/tui/internal/onboarding"
 	"github.com/codeforge/tui/internal/permission"
 	"github.com/codeforge/tui/internal/provider"
 	"github.com/codeforge/tui/internal/rules"
@@ -120,6 +121,11 @@ func Run(opt Options, w io.Writer) (Result, error) {
 			"Set XAI_API_KEY / GEMINI_API_KEY or run codeforge TUI /setup", err), err)
 	}
 	if err := p.ValidateConfig(); err != nil {
+		// Placeholder providers (empty Claude/etc.) without any keys → no_provider (O7)
+		if !onboarding.HasAnyAPIKey() {
+			return writeFail(failResult("no_provider", "No AI provider configured",
+				"Set XAI_API_KEY / GEMINI_API_KEY or run codeforge TUI /setup", err), err)
+		}
 		pe := provider.Classify(err, 0, err.Error(), rt.ProvReg.CurrentName())
 		return writeFail(Result{
 			OK: false, Error: pe.Message, Code: string(pe.Code), Hint: pe.Hint,
