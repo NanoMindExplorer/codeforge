@@ -11,6 +11,7 @@ import (
 )
 
 // View renders the visible viewport including sticky header + scrollbar.
+// Phase 9: only materializes lines in the viewport (O(viewport) not O(history)).
 func (s *Store) View() string {
 	if s.width < 10 || s.height < 1 {
 		return ""
@@ -26,8 +27,7 @@ func (s *Store) View() string {
 		vpH = 1
 	}
 
-	all := s.flattenLines()
-	total := len(all)
+	total := s.totalLines()
 	if s.follow {
 		if total > vpH {
 			s.offset = total - vpH
@@ -37,14 +37,7 @@ func (s *Store) View() string {
 	}
 	s.clampOffsetWithH(vpH, total)
 
-	end := s.offset + vpH
-	if end > total {
-		end = total
-	}
-	var vis []string
-	if s.offset < total {
-		vis = all[s.offset:end]
-	}
+	vis := s.viewportLines(s.offset, vpH)
 	// pad
 	for len(vis) < vpH {
 		vis = append(vis, "")
@@ -68,7 +61,6 @@ func (s *Store) View() string {
 	// follow indicator
 	if !s.follow && total > vpH {
 		hint := lipgloss.NewStyle().Foreground(t.TextMuted).Render(" ↓ follow off · G to resume")
-		// overlay last line area — append as status if room; skip to avoid height overflow
 		_ = hint
 	}
 	return out.String()
@@ -153,24 +145,89 @@ func stripANSIApprox(s string) string {
 	return s
 }
 
+func (s *Store) rebuildLayout() {
+	n := len(s.blocks)
+	s.heights = make([]int, n)
+	s.lineStarts = make([]int, n)
+	total := 0
+	for i := 0; i < n; i++ {
+		s.lineStarts[i] = total
+		h := len(s.renderBlockLines(i))
+		s.heights[i] = h
+		total += h
+	}
+	s.cachedTotal = total
+	s.layoutDirty = false
+}
+
+func (s *Store) ensureLayout() {
+	if s.layoutDirty || len(s.heights) != len(s.blocks) {
+		s.rebuildLayout()
+	}
+}
+
 func (s *Store) totalLines() int {
-	return len(s.flattenLines())
+	s.ensureLayout()
+	return s.cachedTotal
 }
 
 func (s *Store) blockHeight(i int) int {
-	lines := s.renderBlockLines(i)
-	return len(lines)
+	s.ensureLayout()
+	if i < 0 || i >= len(s.heights) {
+		return 0
+	}
+	return s.heights[i]
 }
 
 func (s *Store) blockLineSpan(i int) (start, end int) {
-	start = 0
-	for j := 0; j < i && j < len(s.blocks); j++ {
-		start += s.blockHeight(j)
+	s.ensureLayout()
+	if i < 0 || i >= len(s.lineStarts) {
+		return 0, 0
 	}
-	end = start + s.blockHeight(i)
+	start = s.lineStarts[i]
+	end = start + s.heights[i]
 	return
 }
 
+// viewportLines returns only the lines covering [offset, offset+vpH).
+func (s *Store) viewportLines(offset, vpH int) []string {
+	s.ensureLayout()
+	if vpH <= 0 || s.cachedTotal == 0 {
+		return nil
+	}
+	end := offset + vpH
+	if end > s.cachedTotal {
+		end = s.cachedTotal
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= end {
+		return nil
+	}
+	// find first block that intersects
+	var out []string
+	for i := range s.blocks {
+		bs, be := s.lineStarts[i], s.lineStarts[i]+s.heights[i]
+		if be <= offset {
+			continue
+		}
+		if bs >= end {
+			break
+		}
+		lines := s.renderBlockLines(i)
+		// slice intersection
+		for li, ln := range lines {
+			abs := bs + li
+			if abs >= offset && abs < end {
+				out = append(out, ln)
+			}
+		}
+	}
+	return out
+}
+
+// flattenLines still available for tests/debug (full materialization).
 func (s *Store) flattenLines() []string {
 	var all []string
 	for i := range s.blocks {
@@ -310,10 +367,11 @@ func (s *Store) bodyLines(b Block, width int) []string {
 	if body == "" {
 		return nil
 	}
+	var lines []string
 	switch b.Kind {
 	case KindAssistant, KindThinking:
 		out := markdown.Render(body, width)
-		return strings.Split(out, "\n")
+		lines = strings.Split(out, "\n")
 	case KindToolCall:
 		// args preview
 		preview := strings.TrimSpace(body)
@@ -321,27 +379,33 @@ func (s *Store) bodyLines(b Block, width int) []string {
 			preview = preview[:400] + "…"
 		}
 		wrapped := wordwrap.String(preview, width)
-		var lines []string
 		for _, ln := range strings.Split(wrapped, "\n") {
 			lines = append(lines, lipgloss.NewStyle().Foreground(theme.Current().TextMuted).Render(ln))
 		}
-		return lines
 	case KindToolResult:
 		preview := body
 		if len(preview) > 2000 {
 			preview = preview[:2000] + "\n…"
 		}
 		wrapped := wordwrap.String(preview, width)
-		return strings.Split(wrapped, "\n")
+		lines = strings.Split(wrapped, "\n")
 	case KindDiff:
-		return renderDiffBody(body, width)
+		lines = renderDiffBody(body, width)
 	case KindUser:
 		wrapped := wordwrap.String(body, width)
-		return strings.Split(wrapped, "\n")
+		lines = strings.Split(wrapped, "\n")
 	default:
 		wrapped := wordwrap.String(body, width)
-		return strings.Split(wrapped, "\n")
+		lines = strings.Split(wrapped, "\n")
 	}
+	// Phase 9: cap painted lines; full body still in Block for viewer/copy
+	if len(lines) > MaxBodyLines {
+		t := theme.Current()
+		trunc := lipgloss.NewStyle().Foreground(t.TextMuted).Italic(true).
+			Render(fmt.Sprintf("… +%d lines (Enter to expand · y to copy)", len(lines)-MaxBodyLines+1))
+		lines = append(lines[:MaxBodyLines-1], trunc)
+	}
+	return lines
 }
 
 func renderDiffBody(diffText string, width int) []string {

@@ -26,7 +26,7 @@ import (
 
 const (
 	ProjectName    = "CodeForge TUI"
-	ProjectVersion = "0.9.7"
+	ProjectVersion = "1.0.0"
 	ProjectAuthor  = "NanoMind"
 	ProjectYear    = "2026"
 	ProjectLicense = "Apache 2.0"
@@ -338,6 +338,18 @@ func runSessionCLI(args []string) int {
 		}
 		fmt.Println("imported", s.ID)
 		return 0
+	case "migrate":
+		// Phase 9: flat v0.8 JSON → Phase 4 v2 dirs
+		res, err := session.MigrateLegacy()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		fmt.Printf("migrated %d · skipped %d\n", res.Migrated, res.Skipped)
+		for _, e := range res.Errors {
+			fmt.Fprintln(os.Stderr, "  ⚠", e)
+		}
+		return 0
 	case "export-all":
 		dest := "codeforge-sessions"
 		if len(args) >= 2 {
@@ -402,7 +414,7 @@ func printBanner() {
 	fmt.Printf(`
 ╔══════════════════════════════════════════════════════════════╗
 ║   CodeForge TUI v%s  |  by %s  |  %s                 ║
-║   Grok-style TUI · Plan/Act · Headless · Plugins · GitHub    ║
+║   Grok-parity TUI · ACP · Plan · Sessions · Permissions      ║
 ╚══════════════════════════════════════════════════════════════╝
 `, ProjectVersion, ProjectAuthor, ProjectYear)
 }
@@ -437,7 +449,9 @@ Env:
   CODEFORGE_THEME          groknight|grokday|tokyonight|rosepine|oscura|auto
   CODEFORGE_AUTO_DARK / CODEFORGE_AUTO_LIGHT
   CODEFORGE_COMPACT=1, CODEFORGE_MINIMAL=1, CODEFORGE_NO_MOTION
+  CODEFORGE_SSH_TUNE=1     auto compact+no-motion over SSH
   CODEFORGE_COLOR          true|256|16|none (force quantize)
+  NO_COLOR                 monochrome (a11y)
   CODEFORGE_PLAIN_MD       skip glamour
 
 `, ProjectVersion, agentUsage(), sessionUsage())
@@ -478,9 +492,11 @@ func sessionUsage() string {
   codeforge session export <id> [file.json]
   codeforge session import <file.json>
   codeforge session export-all [dir]
+  codeforge session migrate              # v0.8 flat JSON → v2 layout
 
   Shared across machines:
     export CODEFORGE_SESSIONS_DIR=/path/to/sync/sessions
+  See docs/SESSION_MIGRATION.md
 `
 }
 

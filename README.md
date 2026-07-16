@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev/)
-[![Version](https://img.shields.io/badge/version-v0.9.7-22D3EE)](https://github.com/NanoMindExplorer/codeforge)
+[![Version](https://img.shields.io/badge/version-v1.0.0-22D3EE)](https://github.com/NanoMindExplorer/codeforge)
 
 | | |
 |---|---|
@@ -12,7 +12,7 @@
 | **Year** | 2026 |
 | **License** | Apache License 2.0 |
 | **Codename** | Neo-Forge |
-| **Version** | `v0.9.7` |
+| **Version** | `v1.0.0` |
 
 CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in your terminal: stream chat, call tools on your project, review file writes safely (Plan mode), and **integrate with GitHub** (PRs, issues, checks, push/pull — the same class of workflows modern AI coding agents use) — without leaving the keyboard.
 
@@ -20,9 +20,16 @@ CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in y
 
 ## Grok 4.5 parity
 
-CodeForge **v0.9.7** ships Phases 1–8 of **Grok Build TUI–compatible** UX (including ACP for IDEs). The full plan to 1:1 parity:
+CodeForge **v1.0.0** is a **Grok Build TUI–compatible** coding agent: block scrollback, design-plan mode, permissions/hooks, sessions, and **ACP** for IDEs.
 
-→ **[docs/GROK_PARITY_ROADMAP.md](./docs/GROK_PARITY_ROADMAP.md)** (Phase 0–9)
+→ Roadmap: **[docs/GROK_PARITY_ROADMAP.md](./docs/GROK_PARITY_ROADMAP.md)** · Dogfood: **[docs/DOGFOOD.md](./docs/DOGFOOD.md)** · ACP: **[docs/ACP.md](./docs/ACP.md)**
+
+### Honest remaining gaps (Could)
+
+- OS-level sandbox (bubblewrap / Seatbelt)  
+- Full Grok `x.ai/*` ACP extension surface  
+- Provider-native reasoning token streams (synthetic thinking is used)  
+- Pixel-perfect `pager.toml` matrix
 
 ## Table of contents
 
@@ -128,7 +135,7 @@ codeforge --no-motion
 
 ```bash
 codeforge version
-# → codeforge 0.9.7
+# → codeforge 1.0.0
 ```
 
 ---
@@ -734,6 +741,8 @@ CODEFORGE_THEME=auto codeforge
 | `CODEFORGE_COMPACT` / `CODEFORGE_MINIMAL` | Compact padding / terminal-native 16-color chrome |
 | `CODEFORGE_COLOR` | Force quantize: `true` · `256` · `16` · `none` |
 | `CODEFORGE_NO_MOTION` | `1` / `true` disables motion |
+| `NO_COLOR` | Monochrome + no motion (a11y) |
+| `CODEFORGE_SSH_TUNE` | Auto compact + no-motion when SSH_* is set |
 | `CODEFORGE_PLAIN_MD` / `CODEFORGE_NO_GLAMOUR` | Skip rich markdown (faster / leaner) |
 | `NERD_FONT` / `NERD_FONTS` | Prefer Nerd Font file/git glyphs |
 

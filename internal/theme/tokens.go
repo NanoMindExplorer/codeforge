@@ -477,14 +477,43 @@ func ResolveAuto() {
 }
 
 // InitFromEnv applies CODEFORGE_THEME, CODEFORGE_NO_MOTION, CODEFORGE_COMPACT, CODEFORGE_MINIMAL.
+// Accessibility (Phase 9): NO_COLOR, CODEFORGE_REDUCE_MOTION / prefers-reduced-motion.
 func InitFromEnv() {
+	// Accessibility first
+	if os.Getenv("NO_COLOR") != "" {
+		// monochrome + no motion; force color level none via CODEFORGE_COLOR if unset
+		if os.Getenv("CODEFORGE_COLOR") == "" {
+			_ = os.Setenv("CODEFORGE_COLOR", "none")
+			ResetColorLevelCache()
+		}
+		SetMotion(false)
+	}
 	if v := os.Getenv("CODEFORGE_NO_MOTION"); v == "1" || strings.EqualFold(v, "true") {
+		SetMotion(false)
+	}
+	// Common a11y envs (GNOME/KDE sometimes set these)
+	if v := os.Getenv("CODEFORGE_REDUCE_MOTION"); v == "1" || strings.EqualFold(v, "true") {
+		SetMotion(false)
+	}
+	if v := os.Getenv("PREFERS_REDUCED_MOTION"); v == "1" || strings.EqualFold(v, "reduce") || strings.EqualFold(v, "true") {
 		SetMotion(false)
 	}
 	if v := os.Getenv("CODEFORGE_COMPACT"); v == "1" || strings.EqualFold(v, "true") {
 		SetCompact(true)
 	}
+	// SSH heuristic: slow links → compact + no motion (opt-in via CODEFORGE_SSH_TUNE=1)
+	if v := os.Getenv("CODEFORGE_SSH_TUNE"); v == "1" || strings.EqualFold(v, "true") {
+		if os.Getenv("SSH_CONNECTION") != "" || os.Getenv("SSH_TTY") != "" {
+			SetMotion(false)
+			SetCompact(true)
+		}
+	}
 	if v := os.Getenv("CODEFORGE_MINIMAL"); v == "1" || strings.EqualFold(v, "true") {
+		SetMinimal(true)
+		return
+	}
+	// NO_COLOR without explicit theme → minimal chrome-free palette
+	if os.Getenv("NO_COLOR") != "" && os.Getenv("CODEFORGE_THEME") == "" {
 		SetMinimal(true)
 		return
 	}

@@ -3335,31 +3335,33 @@ func autocomplete(input string) string {
 }
 
 func helpText() string {
-	return `CodeForge · Grok-parity Phase 7  ·  v0.9.6
+	return `CodeForge · Grok-parity v1.0  ·  Phases 1–9
 
 SCROLLBACK
-  Enter          Fullscreen block viewer
-  y / Y          Copy block body / metadata
-  j/k h/l e/E    Navigate · fold (vim mode for letters)
+  Enter · y/Y · j/k · fold · G follow-tail
+
+MODES
+  Shift+Tab      BUILD → DESIGN → YOLO
 
 PRODUCT
-  /todos         Task list · footer ☑ 2/5
-  /tasks         Background shell jobs · cancel
-  /settings      Appearance & modes panel
-  /copy          Copy selected / last assistant
-  /plan /resume /theme /permissions /hooks
+  /resume /new /fork /rewind /compact /context
+  /plan /view-plan /todos /tasks /settings /copy
+  /theme /permissions /hooks /vim-mode /compact-mode
 
-SESSION MODES
-  Shift+Tab      BUILD → DESIGN → YOLO
+AGENT / IDE
+  codeforge agent … | agent stdio | agent serve
+  See docs/ACP.md · docs/DOGFOOD.md
 `
 }
 
 func aboutText() string {
-	return `CodeForge TUI v0.9.6
+	return `CodeForge TUI v1.0.0
 Created by NanoMind — 2026 — Apache 2.0
 
-Phase 1–6: blocks, input, themes, sessions, plan, permissions
-Phase 7: todos · thinking/diff blocks · viewer · copy · /tasks
+Grok Build TUI–compatible (Phases 1–9):
+  blocks · input · themes · sessions · design plan
+  permissions/hooks · todos/tasks · ACP IDE bridge
+Honest gaps: OS sandbox, full Grok extension methods.
 See docs/GROK_PARITY_ROADMAP.md
 `
 }

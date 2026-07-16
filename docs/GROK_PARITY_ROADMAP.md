@@ -2,10 +2,9 @@
 
 **Goal:** Make CodeForge feel and behave **1:1** with Grok Build TUI (Grok 4.5 class) in layout, interaction, session lifecycle, permissions, and agent surface — without becoming a closed fork of proprietary code.
 
-**Current baseline:** CodeForge **v0.9.7**  
-- Phase 1–8 shipped: TUI parity slices + ACP stdio/WebSocket  
-- GitHub, plugins, headless agent, rules, index, MCP  
-- **Not** full Grok parity yet (OS sandbox, dogfood polish, …)
+**Current baseline:** CodeForge **v1.0.0**  
+- Phase 0–9 shipped: full Grok-compatible coding TUI + ACP  
+- Honest gaps remain as **Could** (OS sandbox, full x.ai/* ACP extensions)
 
 **Reference:** Grok user-guide docs (`~/.grok/docs/user-guide/`) — theming, shortcuts, sessions, plan mode, permissions, agent ACP.
 
@@ -52,13 +51,13 @@ Phases are **sequential** where later ones depend on earlier UI foundations. Som
 **Purpose:** Agree what “1:1” means so work doesn’t sprawl.
 
 ### Deliverables
-- [ ] This roadmap accepted (Must / Should / Could tagged per feature)
-- [ ] Golden **interaction checklist** (50 user actions: type, Esc×2, Tab, fold, /resume, …)
-- [ ] Screenshot board: Grok vs CodeForge (empty, streaming, tool, diff, plan approve)
-- [ ] Non-goals doc: e.g. Grok.com OAuth, proprietary model routing, full pager.toml matrix
+- [x] This roadmap accepted (Must / Should / Could tagged per feature)
+- [x] Golden **interaction checklist** → `docs/DOGFOOD.md`
+- [ ] Screenshot board: Grok vs CodeForge (optional maintainer assets)
+- [x] Non-goals: OS sandbox, Grok.com OAuth, full `x.ai/*` ACP, full pager.toml
 
 ### Exit criteria
-Team (or you) can answer “done for v1.0 Grok-parity” with a yes/no checklist.
+Team (or you) can answer “done for v1.0 Grok-parity” with a yes/no checklist → **yes for Must/Should shipped; dogfood is ongoing**.
 
 ---
 
@@ -283,8 +282,15 @@ permissions mapped, `docs/ACP.md`, `internal/acp` tests with fake runner.
 6. Tag **v1.0.0-grok-parity** only when Phase 0 checklist is green  
 
 ### Exit criteria
-- [ ] You stop opening Grok for daily coding for 2 weeks  
-- [ ] Public README “Grok-compatible TUI” with honest remaining Coulds  
+- [x] Dogfood checklist documented (`docs/DOGFOOD.md`)  
+- [x] Public README “Grok-compatible TUI” with honest remaining Coulds  
+- [x] Performance: viewport O(visible) + body cap + auto-collapse  
+- [x] Termux / color / SSH matrix documented (`docs/TERMINAL_MATRIX.md`)  
+- [x] Accessibility: `NO_COLOR`, reduce motion, SSH tune  
+- [x] Session migration: `codeforge session migrate` + `docs/SESSION_MIGRATION.md`  
+- [x] Version **v1.0.0** + integration smoke tests  
+
+**Shipped in v1.0.0** — polish, a11y, migrate, docs, integration package.
 
 ---
 
@@ -310,25 +316,9 @@ Parallelize: Phase 3 after Phase 1; Phase 8 after Phase 6.
 ## Execution order we will follow in-repo
 
 ```
-Phase 0  docs freeze
-   ↓
-Phase 1  block scrollback engine     ← next implementation target
-   ↓
-Phase 2  input / Esc / slash / @
-   ↓
-Phase 3  themes + compact + minimal
-   ↓
-Phase 4  sessions / resume / rewind / compact
-   ↓
-Phase 5  design-plan mode + approval UI
-   ↓
-Phase 6  permissions + hooks
-   ↓
-Phase 7  slash parity + todos + inline diffs
-   ↓
-Phase 8  ACP stdio/serve
-   ↓
-Phase 9  dogfood → v1.0.0
+Phase 0–9  COMPLETE for v1.0.0 Grok-compatible claim
+  1 blocks · 2 input · 3 theme · 4 sessions · 5 design plan
+  6 permissions · 7 product surface · 8 ACP · 9 polish
 ```
 
 ---

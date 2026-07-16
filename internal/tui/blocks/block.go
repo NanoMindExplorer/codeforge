@@ -35,6 +35,13 @@ type Block struct {
 	Meta      string // e.g. "+12 -3" for diffs
 }
 
+// MaxBodyLines caps expanded block body height for performance (Phase 9).
+// Full content remains in Block.Body for /copy and the fullscreen viewer.
+const MaxBodyLines = 120
+
+// MaxBlocksSoft triggers auto-collapse of old tool/diff bodies when exceeded.
+const MaxBlocksSoft = 400
+
 // Store holds ordered blocks and scroll/selection state.
 type Store struct {
 	blocks   []Block
@@ -54,6 +61,11 @@ type Store struct {
 	idSeq uint64
 	// vim-like selection when scrollback focused
 	showSelection bool
+	// Phase 9: layout cache (invalidated on mutation / size / selection style)
+	layoutDirty bool
+	heights     []int // lines per block
+	lineStarts  []int // prefix: lineStarts[i] = first line index of block i
+	cachedTotal int
 }
 
 // NewStore creates an empty follow-tail store.
@@ -104,6 +116,9 @@ func (s *Store) SetSize(w, h int) {
 	if h < 3 {
 		h = 3
 	}
+	if s.width != w || s.height != h {
+		s.layoutDirty = true
+	}
 	s.width = w
 	s.height = h
 	s.clampOffset()
@@ -111,11 +126,17 @@ func (s *Store) SetSize(w, h int) {
 
 // SetShowSelection enables highlight of selected block (scrollback focused).
 func (s *Store) SetShowSelection(on bool) {
+	if s.showSelection != on {
+		s.layoutDirty = true
+	}
 	s.showSelection = on
 	if on && s.selected < 0 && len(s.blocks) > 0 {
 		s.selected = len(s.blocks) - 1
 	}
 }
+
+// invalidateLayout marks height cache dirty.
+func (s *Store) invalidateLayout() { s.layoutDirty = true }
 
 // --- Mutations ---
 
@@ -158,6 +179,7 @@ func (s *Store) AppendAssistantChunk(text string) {
 	s.StartAssistant()
 	b := &s.blocks[s.streamAsst]
 	b.Body += text
+	s.layoutDirty = true
 	if s.follow {
 		s.scrollToEnd()
 	}
@@ -331,9 +353,30 @@ func DiffMeta(diffText string) string {
 
 func (s *Store) append(b Block) {
 	s.blocks = append(s.blocks, b)
+	s.layoutDirty = true
+	s.maybeAutoCollapse()
 	if s.follow {
 		s.selected = len(s.blocks) - 1
 		s.scrollToEnd()
+	}
+}
+
+// maybeAutoCollapse collapses old foldable tool/diff/thinking when history is huge.
+func (s *Store) maybeAutoCollapse() {
+	n := len(s.blocks)
+	if n <= MaxBlocksSoft {
+		return
+	}
+	// keep last 80 blocks expanded preference; collapse older tool noise
+	cutoff := n - 80
+	if cutoff < 0 {
+		return
+	}
+	for i := 0; i < cutoff; i++ {
+		k := s.blocks[i].Kind
+		if s.blocks[i].Foldable && (k == KindToolCall || k == KindToolResult || k == KindDiff || k == KindThinking) {
+			s.blocks[i].Collapsed = true
+		}
 	}
 }
 
@@ -345,6 +388,10 @@ func (s *Store) Clear() {
 	s.follow = true
 	s.streamAsst = -1
 	s.turnID = ""
+	s.layoutDirty = true
+	s.heights = nil
+	s.lineStarts = nil
+	s.cachedTotal = 0
 }
 
 // --- Navigation ---
@@ -355,6 +402,7 @@ func (s *Store) SelectNext() {
 		return
 	}
 	s.showSelection = true
+	s.layoutDirty = true
 	if s.selected < 0 {
 		s.selected = 0
 	} else if s.selected < len(s.blocks)-1 {
@@ -370,6 +418,7 @@ func (s *Store) SelectPrev() {
 		return
 	}
 	s.showSelection = true
+	s.layoutDirty = true
 	if s.selected < 0 {
 		s.selected = len(s.blocks) - 1
 	} else if s.selected > 0 {
@@ -390,6 +439,7 @@ func (s *Store) ToggleCollapse() {
 	}
 	if s.blocks[idx].Foldable {
 		s.blocks[idx].Collapsed = !s.blocks[idx].Collapsed
+		s.layoutDirty = true
 	}
 }
 
@@ -400,6 +450,7 @@ func (s *Store) ExpandAll() {
 			s.blocks[i].Collapsed = false
 		}
 	}
+	s.layoutDirty = true
 }
 
 // CollapseAll collapses every foldable block.
@@ -409,6 +460,7 @@ func (s *Store) CollapseAll() {
 			s.blocks[i].Collapsed = true
 		}
 	}
+	s.layoutDirty = true
 }
 
 // ToggleExpandAll expands if any collapsed, else collapses all.

@@ -20,7 +20,15 @@ cp codeforge $PREFIX/bin/
 
 echo 'export GEMINI_API_KEY=AIzaSy...' >> ~/.bashrc
 source ~/.bashrc
-codeforge --no-motion   # recommended on slow devices
+codeforge --no-motion --compact   # recommended on slow devices
+# optional: export CODEFORGE_SSH_TUNE=1
+```
+
+Upgrade from v0.8 sessions:
+
+```bash
+codeforge session migrate
+# see docs/SESSION_MIGRATION.md
 ```
 
 ## Ubuntu / Debian
