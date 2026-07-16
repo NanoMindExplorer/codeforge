@@ -15,6 +15,7 @@ import (
 	"github.com/codeforge/tui/internal/provider"
 	"github.com/codeforge/tui/internal/rules"
 	"github.com/codeforge/tui/internal/session"
+	"github.com/codeforge/tui/internal/skills"
 	"github.com/codeforge/tui/internal/tool"
 )
 
@@ -55,6 +56,8 @@ type Server struct {
 	ready bool
 	// x.ai/terminal/* state
 	terminals map[string]*acpTerminal
+	// lastToolCallID maps sessionID → last toolCallId for update correlation
+	lastToolCallID map[string]string
 }
 
 // acpTerminal is a background shell job for x.ai/terminal extensions.
@@ -86,15 +89,16 @@ type acpSession struct {
 // NewServer creates an ACP server (transport set via SetTransport).
 func NewServer(opt Options) *Server {
 	if opt.Version == "" {
-		opt.Version = "0.9.7"
+		opt.Version = "1.8.0"
 	}
 	if opt.MaxIter <= 0 {
 		opt.MaxIter = 12
 	}
 	return &Server{
-		opt:     opt,
-		sess:    map[string]*acpSession{},
-		cancels: map[string]context.CancelFunc{},
+		opt:            opt,
+		sess:           map[string]*acpSession{},
+		cancels:        map[string]context.CancelFunc{},
+		lastToolCallID: map[string]string{},
 	}
 }
 
@@ -237,10 +241,12 @@ func (s *Server) doSessionNew(params json.RawMessage) (SessionNewResult, error) 
 	if s.opt.Plan {
 		eng.SetMode(permission.ModePlan)
 	}
+	tool.SubagentAuthorizer = eng
 
 	sys := `You are CodeForge ACP agent for IDE integration. Be concise and complete tasks.
 Prefer search_replace/apply_patch. Use tools when needed. Reply in the user's language.`
 	sys = rules.Inject(sys, rt.Rules)
+	sys = skills.Global().InjectCatalog(sys)
 	if p.Meta != nil {
 		if r, ok := p.Meta["rules"].(string); ok && r != "" {
 			sys += "\n\n" + r
@@ -437,9 +443,16 @@ func (s *Server) emitAgentEvent(sessionID string, ev agent.Event) {
 			"content":       map[string]any{"type": "text", "text": ev.Text},
 		})
 	case agent.EventToolCall:
+		id := ev.ToolName + "-" + fmt.Sprintf("%d", time.Now().UnixNano()%1e9)
+		s.mu.Lock()
+		if s.lastToolCallID == nil {
+			s.lastToolCallID = map[string]string{}
+		}
+		s.lastToolCallID[sessionID] = id
+		s.mu.Unlock()
 		s.notifyUpdate(sessionID, map[string]any{
 			"sessionUpdate": "tool_call",
-			"toolCallId":    ev.ToolName + "-" + fmt.Sprintf("%d", time.Now().UnixNano()%1e9),
+			"toolCallId":    id,
 			"title":         ev.ToolName,
 			"kind":          toolKind(ev.ToolName),
 			"status":        "pending",
@@ -462,12 +475,19 @@ func (s *Server) emitAgentEvent(sessionID string, ev agent.Event) {
 				},
 			})
 		}
-		s.notifyUpdate(sessionID, map[string]any{
+		s.mu.Lock()
+		tid := s.lastToolCallID[sessionID]
+		s.mu.Unlock()
+		upd := map[string]any{
 			"sessionUpdate": "tool_call_update",
 			"title":         ev.ToolName,
 			"status":        status,
 			"content":       content,
-		})
+		}
+		if tid != "" {
+			upd["toolCallId"] = tid
+		}
+		s.notifyUpdate(sessionID, upd)
 	}
 }
 

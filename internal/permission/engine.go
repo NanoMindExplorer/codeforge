@@ -83,14 +83,14 @@ func NewEngine(workdir string) *Engine {
 	}
 }
 
-// DefaultRules seed safe deny patterns.
+// DefaultRules seed safe deny patterns (apply to run_command + Grok alias).
 func DefaultRules() []Rule {
 	return []Rule{
-		{Tool: "run_command", Pattern: "rm -rf *", Effect: EffectDeny},
-		{Tool: "run_command", Pattern: "rm -fr *", Effect: EffectDeny},
-		{Tool: "run_command", Pattern: "sudo *", Effect: EffectAsk},
-		{Tool: "run_command", Pattern: "git push --force*", Effect: EffectAsk},
-		{Tool: "run_command", Pattern: "git push -f*", Effect: EffectAsk},
+		{Tool: "shell", Pattern: "rm -rf *", Effect: EffectDeny},
+		{Tool: "shell", Pattern: "rm -fr *", Effect: EffectDeny},
+		{Tool: "shell", Pattern: "sudo *", Effect: EffectAsk},
+		{Tool: "shell", Pattern: "git push --force*", Effect: EffectAsk},
+		{Tool: "shell", Pattern: "git push -f*", Effect: EffectAsk},
 	}
 }
 
@@ -125,8 +125,9 @@ func (e *Engine) Evaluate(toolName, input string) Result {
 	e.mu.RUnlock()
 
 	subject := matchSubject(toolName, input)
-	dangerous := toolName == "run_command" && IsDangerous(subject)
-	key := rememberKey(toolName, subject)
+	canon := canonicalizeTool(toolName)
+	dangerous := isShellTool(toolName) && IsDangerous(subject)
+	key := rememberKey(canon, subject)
 
 	// 1) Pre-hooks evaluated in Authorize (need ctx) — Evaluate is pure rules.
 	// Callers run hooks first.
@@ -169,17 +170,19 @@ func (e *Engine) Evaluate(toolName, input string) Result {
 				return Result{Decision: DecisionDeny, Reason: "remembered deny", RememberKey: key}
 			}
 		}
-		// also try tool-wide remember
-		if allow, ok := remembered[toolName+":*"]; ok && allow && !dangerous {
-			return Result{Decision: DecisionAllow, Reason: "remembered tool allow", RememberKey: toolName + ":*"}
+		// also try tool-wide remember (canonical + raw name)
+		for _, tk := range []string{canon + ":*", toolName + ":*"} {
+			if allow, ok := remembered[tk]; ok && allow && !dangerous {
+				return Result{Decision: DecisionAllow, Reason: "remembered tool allow", RememberKey: tk}
+			}
 		}
 	}
 
 	// 4) Built-in auto-approvals
-	if IsReadOnlyTool(toolName) {
+	if IsReadOnlyTool(toolName) || IsReadOnlyTool(canon) {
 		return Result{Decision: DecisionAllow, Reason: "read-only tool", RememberKey: key}
 	}
-	if toolName == "run_command" && IsReadOnlyShell(subject) {
+	if isShellTool(toolName) && IsReadOnlyShell(subject) {
 		return Result{Decision: DecisionAllow, Reason: "read-only shell", RememberKey: key}
 	}
 
@@ -203,7 +206,7 @@ func (e *Engine) Evaluate(toolName, input string) Result {
 		if isEditTool(toolName) {
 			return Result{Decision: DecisionAllow, Reason: "default allow edits (staged in BUILD)", RememberKey: key}
 		}
-		if toolName == "run_command" || strings.HasPrefix(toolName, "mcp_") || toolName == "github" {
+		if isShellTool(toolName) || strings.HasPrefix(toolName, "mcp_") || toolName == "github" {
 			return Result{Decision: DecisionAsk, Reason: "default policy requires approval", RememberKey: key, Dangerous: dangerous}
 		}
 		return Result{Decision: DecisionAllow, Reason: "default allow", RememberKey: key}
@@ -346,11 +349,7 @@ func rememberKey(tool, subject string) string {
 }
 
 func isEditTool(name string) bool {
-	switch name {
-	case "write_file", "search_replace", "apply_patch":
-		return true
-	}
-	return false
+	return isEditToolName(name)
 }
 
 func isPlanTool(name string) bool {

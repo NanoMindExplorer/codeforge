@@ -336,7 +336,13 @@ func Load() (*Config, error) {
     v.AddConfigPath(".")
     v.SetConfigName("config")
 
-    v.BindEnv("providers.claude.api_key", "ANTHROPIC_API_KEY")
+    _ = v.BindEnv("providers.claude.api_key", "ANTHROPIC_API_KEY")
+    _ = v.BindEnv("providers.gemini.api_key", "GEMINI_API_KEY")
+    _ = v.BindEnv("providers.openai.api_key", "OPENAI_API_KEY")
+    _ = v.BindEnv("providers.grok.api_key", "XAI_API_KEY")
+    _ = v.BindEnv("providers.xai.api_key", "XAI_API_KEY")
+    _ = v.BindEnv("sandbox.profile", "CODEFORGE_SANDBOX")
+    _ = v.BindEnv("theme", "CODEFORGE_THEME")
 
     if err := v.ReadInConfig(); err != nil {
         // file not found OK
@@ -349,12 +355,27 @@ func Load() (*Config, error) {
     if cfg.Providers == nil {
         cfg.Providers = make(map[string]Provider)
     }
-    if p, ok := cfg.Providers["claude"]; ok {
-        if p.APIKey == "" {
-            p.APIKey = os.Getenv("ANTHROPIC_API_KEY")
-            cfg.Providers["claude"] = p
+    // Fill empty API keys from env (deep-merge friendly)
+    fillKey := func(name string, envs ...string) {
+        p, ok := cfg.Providers[name]
+        if !ok {
+            p = Provider{Enabled: true, Type: name}
         }
+        if p.APIKey == "" {
+            for _, e := range envs {
+                if v := os.Getenv(e); v != "" {
+                    p.APIKey = v
+                    break
+                }
+            }
+        }
+        cfg.Providers[name] = p
     }
+    fillKey("claude", "ANTHROPIC_API_KEY")
+    fillKey("gemini", "GEMINI_API_KEY")
+    fillKey("openai", "OPENAI_API_KEY")
+    fillKey("grok", "XAI_API_KEY", "GROK_API_KEY")
+    fillKey("xai", "XAI_API_KEY", "GROK_API_KEY")
     return cfg, nil
 }
 
@@ -371,20 +392,34 @@ func SaveExample() error {
         return nil
     }
     content := `# CodeForge TUI Configuration
-default_provider: claude
-theme: dark
+default_provider: grok
+theme: groknight
 
 providers:
+  grok:
+    enabled: true
+    type: openai
+    api_key: ""          # or set XAI_API_KEY / GROK_API_KEY
+    default_model: grok-4.5
+  gemini:
+    enabled: true
+    type: gemini
+    api_key: ""          # or set GEMINI_API_KEY
+    default_model: gemini-2.5-flash
   claude:
     enabled: true
     type: anthropic
-    api_key: ""
+    api_key: ""          # or set ANTHROPIC_API_KEY
     default_model: claude-sonnet-4-20250514
-    capabilities:
-      streaming: true
-      tool_use: true
-      vision: true
-      max_context: 200000
+
+# sandbox:
+#   profile: workspace   # off | workspace | read-only | strict
+
+# ui:
+#   vim_mode: false
+#   compact_mode: false
+#   show_thinking_blocks: true
+#   scroll_speed: 50
 
 git:
   auto_commit: true

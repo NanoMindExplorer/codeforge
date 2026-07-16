@@ -555,3 +555,11 @@ func (r *Registry) List() []Tool {
     }
     return tools
 }
+
+// CloneWithoutSpawn shallow-copies the registry without spawn_subagent (for general subagents).
+func (r *Registry) CloneWithoutSpawn() *Registry {
+    if r == nil {
+        return NewRegistry(".")
+    }
+    return cloneWithoutSpawn(r)
+}

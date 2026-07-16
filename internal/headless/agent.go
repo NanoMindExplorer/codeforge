@@ -17,6 +17,7 @@ import (
 	"github.com/codeforge/tui/internal/rules"
 	"github.com/codeforge/tui/internal/session"
 	"github.com/codeforge/tui/internal/skills"
+	"github.com/codeforge/tui/internal/tool"
 )
 
 // Options for a headless agent run.
@@ -133,6 +134,7 @@ Reply with a clear summary of what you did.`
 	if opt.Plan {
 		eng.SetMode(permission.ModePlan)
 	}
+	tool.SubagentAuthorizer = eng
 
 	ch := agent.Run(ctx, agent.Config{
 		Provider:      p,
@@ -155,6 +157,11 @@ Reply with a clear summary of what you did.`
 
 	for ev := range ch {
 		switch ev.Kind {
+		case agent.EventThinking:
+			if !opt.JSON && !opt.Quiet && ev.Thinking != "" {
+				fmt.Fprintf(w, "💭 %s\n", trim(ev.Thinking, 200))
+			}
+			events = append(events, EventRecord{Kind: "thinking", Text: ev.Thinking})
 		case agent.EventText:
 			text.WriteString(ev.Text)
 			if !opt.JSON && !opt.Quiet {

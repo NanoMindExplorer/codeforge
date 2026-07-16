@@ -198,6 +198,8 @@ func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry,
 		}
 	}
 	chat.Auth = permEng
+	// Nested spawn_subagent inherits the same permission engine
+	tool.SubagentAuthorizer = permEng
 	// Project rules
 	rb := rules.Get()
 	if rb != nil && rb.Text != "" {
@@ -3630,7 +3632,7 @@ var slashCommands = []string{
 	"/status", "/commit", "/push", "/pull", "/pr", "/issue", "/gh",
 	"/provider", "/model", "/mode", "/cost", "/budget", "/rules", "/index",
 	"/theme", "/compact-mode", "/vim-mode",
-	"/resume", "/new", "/fork", "/rewind", "/compact", "/context", "/session-info",
+	"/resume", "/new", "/rename", "/fork", "/rewind", "/compact", "/context", "/session-info",
 	"/mode", "/plan", "/view-plan", "/permissions", "/sandbox", "/pager", "/hooks",
 	"/todos", "/tasks", "/memory", "/skills", "/personas", "/subagents", "/settings", "/copy",
 	"/sessions", "/undo", "/clear", "/help", "/about", "/quit",
@@ -3667,14 +3669,14 @@ AGENT / IDE
 }
 
 func aboutText() string {
-	return `CodeForge TUI v1.8.0
+	return `CodeForge TUI v1.8.1
 Created by NanoMind — 2026 — Apache 2.0
 
-Grok Build TUI–compatible (Phases 1–9 + G1–G9 + pager.toml):
+Grok Build TUI–compatible (Phases 1–9 + G1–G10):
   blocks · input · themes · sessions · design plan
   permissions/hooks · todos/tasks · ACP + x.ai/* extensions
   Grok 4.5 · native thinking · Landlock · skills · personas
-  pager.toml layout/scrollbar/blocks/animation · /pager
+  pager.toml · subagent auth · Grok shell alias policy
 See docs/PAGER.md · docs/REASONING.md · docs/ACP.md
 `
 }

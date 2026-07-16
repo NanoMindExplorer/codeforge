@@ -78,7 +78,7 @@ func Bootstrap(opt Options) (*Runtime, error) {
 	}
 
 	provReg := provider.NewRegistry()
-	registerProviders(provReg, logf)
+	registerProvidersWithConfig(provReg, cfg, logf)
 
 	if _, err := provReg.Current(); err != nil {
 		_ = provReg.Register(provider.NewClaudeProvider("", "claude-sonnet-4-20250514"))
@@ -208,12 +208,21 @@ func Bootstrap(opt Options) (*Runtime, error) {
 			onEvent(tool.SubagentEvent{Kind: "error", Error: err.Error()})
 			return
 		}
+		// Bridge optional SubagentAuthorizer → agent.Authorizer
+		var auth agent.Authorizer
+		if tool.SubagentAuthorizer != nil {
+			auth = subAuthBridge{tool.SubagentAuthorizer}
+		}
 		ch := agent.Run(ctx, agent.Config{
 			Provider: p, Tools: tools, System: system,
-			MaxTokens: 2048, MaxIterations: maxIter,
+			MaxTokens: 2048, MaxIterations: maxIter, Auth: auth,
 		}, msgs)
 		for ev := range ch {
 			switch ev.Kind {
+			case agent.EventThinking:
+				if ev.Thinking != "" {
+					onEvent(tool.SubagentEvent{Kind: "thinking", Text: ev.Thinking})
+				}
 			case agent.EventText:
 				onEvent(tool.SubagentEvent{Kind: "text", Text: ev.Text})
 			case agent.EventToolCall:
@@ -294,27 +303,101 @@ func Bootstrap(opt Options) (*Runtime, error) {
 }
 
 func registerProviders(reg *provider.Registry, logf func(string, ...any)) {
-	// Prefer Grok 4.5 when XAI key is present
-	if k := os.Getenv("XAI_API_KEY"); k != "" || os.Getenv("GROK_API_KEY") != "" {
-		_ = reg.Register(provider.NewGrokProvider(k, "grok-4.5"))
-		logf("✓ Grok (xAI) registered — model grok-4.5\n")
+	registerProvidersWithConfig(reg, nil, logf)
+}
+
+func registerProvidersWithConfig(reg *provider.Registry, cfg *config.Config, logf func(string, ...any)) {
+	// Helper: env wins over config key
+	keyOf := func(envKeys []string, cfgKey string) string {
+		for _, e := range envKeys {
+			if v := os.Getenv(e); v != "" {
+				return v
+			}
+		}
+		return cfgKey
+	}
+	cfgKey := func(name string) (apiKey, model, endpoint string) {
+		if cfg == nil || cfg.Providers == nil {
+			return "", "", ""
+		}
+		if p, ok := cfg.Providers[name]; ok {
+			return p.APIKey, p.DefaultModel, p.Endpoint
+		}
+		return "", "", ""
+	}
+
+	// Grok
+	gk, gm, ge := cfgKey("grok")
+	if gk == "" {
+		gk, _, _ = cfgKey("xai")
+	}
+	gk = keyOf([]string{"XAI_API_KEY", "GROK_API_KEY"}, gk)
+	if gm == "" {
+		gm = "grok-4.5"
+	}
+	if gk != "" {
+		p := provider.NewGrokProvider(gk, gm)
+		if ge != "" {
+			// OpenAI-compatible endpoint override via env already; set if exposed
+			_ = ge
+		}
+		_ = reg.Register(p)
+		logf("✓ Grok (xAI) registered — model %s\n", gm)
 		_ = reg.Switch("grok")
 	}
-	if k := os.Getenv("GEMINI_API_KEY"); k != "" {
-		_ = reg.Register(provider.NewGeminiProvider(k, "gemini-2.5-flash"))
+
+	// Gemini
+	gemK, gemM, _ := cfgKey("gemini")
+	gemK = keyOf([]string{"GEMINI_API_KEY"}, gemK)
+	if gemM == "" {
+		gemM = "gemini-2.5-flash"
+	}
+	if gemK != "" {
+		_ = reg.Register(provider.NewGeminiProvider(gemK, gemM))
 		logf("✓ Gemini registered\n")
 	}
-	if k := os.Getenv("ANTHROPIC_API_KEY"); k != "" {
-		_ = reg.Register(provider.NewClaudeProvider(k, "claude-sonnet-4-20250514"))
+
+	// Claude
+	ck, cm, _ := cfgKey("claude")
+	ck = keyOf([]string{"ANTHROPIC_API_KEY"}, ck)
+	if cm == "" {
+		cm = "claude-sonnet-4-20250514"
+	}
+	if ck != "" {
+		_ = reg.Register(provider.NewClaudeProvider(ck, cm))
 		logf("✓ Claude registered\n")
 	}
-	if k := os.Getenv("OPENAI_API_KEY"); k != "" {
-		_ = reg.Register(provider.NewOpenAIProvider(k, "gpt-4o-mini"))
+
+	// OpenAI
+	ok, om, _ := cfgKey("openai")
+	ok = keyOf([]string{"OPENAI_API_KEY"}, ok)
+	if om == "" {
+		om = "gpt-4o-mini"
+	}
+	if ok != "" {
+		_ = reg.Register(provider.NewOpenAIProvider(ok, om))
 		logf("✓ OpenAI registered\n")
 	}
+
 	ollama := provider.NewOllamaProvider("")
 	if err := ollama.ValidateConfig(); err == nil {
 		_ = reg.Register(ollama)
 		logf("✓ Ollama registered (local)\n")
+	}
+}
+
+// subAuthBridge adapts tool.SubagentAuth to agent.Authorizer.
+type subAuthBridge struct{ a tool.SubagentAuth }
+
+func (b subAuthBridge) Authorize(ctx context.Context, toolName, input string) error {
+	if b.a == nil {
+		return nil
+	}
+	return b.a.Authorize(ctx, toolName, input)
+}
+
+func (b subAuthBridge) NotifyPost(ctx context.Context, toolName, input, output string, success bool) {
+	if b.a != nil {
+		b.a.NotifyPost(ctx, toolName, input, output, success)
 	}
 }

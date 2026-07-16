@@ -70,6 +70,14 @@ func (s *StagedWriter) Mode() WriteMode {
 	return s.mode
 }
 
+// WorkDirSafe returns the underlying workdir (for subagent worktree checks).
+func (s *StagedWriter) WorkDirSafe() string {
+	if s == nil || s.inner == nil {
+		return ""
+	}
+	return s.inner.WorkDir
+}
+
 // SetPlanPath sets the absolute path of the design plan file (plan.md).
 func (s *StagedWriter) SetPlanPath(abs string) {
 	s.mu.Lock()

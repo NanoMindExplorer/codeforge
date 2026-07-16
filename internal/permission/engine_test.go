@@ -128,3 +128,26 @@ func TestPatternMatch(t *testing.T) {
 		t.Fatal("should match")
 	}
 }
+
+func TestGrokShellAliasPermissions(t *testing.T) {
+	e := NewEngine(t.TempDir())
+	// Grok alias must share deny/ask policy with run_command
+	res := e.Evaluate("run_terminal_command", `{"command":"rm -rf /tmp/foo"}`)
+	if res.Decision != DecisionDeny {
+		t.Fatalf("alias deny: %v %s", res.Decision, res.Reason)
+	}
+	res = e.Evaluate("run_terminal_command", `{"command":"git status"}`)
+	if res.Decision != DecisionAllow {
+		t.Fatalf("alias readonly shell: %v %s", res.Decision, res.Reason)
+	}
+	res = e.Evaluate("run_terminal_command", `{"command":"make build"}`)
+	if res.Decision != DecisionAsk {
+		t.Fatalf("alias ask: %v %s", res.Decision, res.Reason)
+	}
+	// edit_file denied under plan mode
+	e.SetMode(ModePlan)
+	res = e.Evaluate("edit_file", `{"path":"a.go","old_string":"x","new_string":"y"}`)
+	if res.Decision != DecisionDeny {
+		t.Fatalf("edit_file plan deny: %v %s", res.Decision, res.Reason)
+	}
+}

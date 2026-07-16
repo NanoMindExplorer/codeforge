@@ -33,6 +33,16 @@ var SubagentRunner func(
 // SubagentParentRegistry is the parent tool registry (for MCP tools on explore).
 var SubagentParentRegistry *Registry
 
+// SubagentAuth gates nested agent tools (set from TUI/headless/ACP permission engine).
+// Same shape as agent.Authorizer without importing agent (cycle avoidance).
+type SubagentAuth interface {
+	Authorize(ctx context.Context, toolName, input string) error
+	NotifyPost(ctx context.Context, toolName, input, output string, success bool)
+}
+
+// SubagentAuthorizer is the active gate for spawn_subagent children (may be nil).
+var SubagentAuthorizer SubagentAuth
+
 // SpawnSubagent runs a nested agent turn (Grok spawn_subagent parity — Phase G6/G7).
 type SpawnSubagent struct {
 	WorkDir string
@@ -392,6 +402,11 @@ func executeSubagentRun(ctx context.Context, spec runSpec, progress ProgressFunc
 	cancelled := false
 	SubagentRunner(ctx, workdir, sys, msgs, tools, spec.MaxIter, func(ev SubagentEvent) {
 		switch ev.Kind {
+		case "thinking":
+			// fold reasoning into progress only (not final summary body)
+			if progress != nil && ev.Text != "" {
+				progress("thinking: " + truncateRunes(ev.Text, 60))
+			}
 		case "text":
 			text.WriteString(ev.Text)
 			if progress != nil && ev.Text != "" {
@@ -455,7 +470,34 @@ func buildSubagentTools(agentType string, cap CapabilityMode, workdir string) *R
 	case "explore":
 		return FilterRegistryByCapability(nil, CapReadOnly, workdir, parent)
 	default:
-		base := NewRegistry(workdir)
+		// Prefer parent registry so MCP/research and staged write mode stay aligned.
+		var base *Registry
+		if parent != nil {
+			base = parent.CloneWithoutSpawn()
+			// Re-bind workdir-sensitive tools if child workdir differs (worktree).
+			if workdir != "" && parent.GetStagedWriter() != nil {
+				// keep same staged writer mode; tools already share parent workdir
+				// for isolation=worktree, rebuild full registry under child path
+				if sw := parent.GetStagedWriter(); sw != nil && workdir != sw.WorkDirSafe() {
+					base = NewRegistry(workdir)
+					// copy MCP tools from parent
+					for _, t := range parent.List() {
+						if strings.HasPrefix(t.Name(), "mcp_") {
+							base.Register(t)
+						}
+					}
+					// sync write mode
+					if nsw := base.GetStagedWriter(); nsw != nil {
+						nsw.SetMode(sw.Mode())
+					}
+					// strip spawn
+					base = cloneWithoutSpawn(base)
+				}
+			}
+		} else {
+			base = NewRegistry(workdir)
+			base = cloneWithoutSpawn(base)
+		}
 		return FilterRegistryByCapability(base, cap, workdir, parent)
 	}
 }

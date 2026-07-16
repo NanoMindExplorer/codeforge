@@ -69,6 +69,7 @@ func DefaultItems() []Item {
 		{"/vim-mode", "Toggle vim scrollback keys"},
 		{"/resume", "Resume session picker"},
 		{"/new", "New session (new id)"},
+		{"/rename", "Rename current session title"},
 		{"/fork", "Fork conversation"},
 		{"/rewind", "Rewind files + chat"},
 		{"/compact", "Compress conversation history"},

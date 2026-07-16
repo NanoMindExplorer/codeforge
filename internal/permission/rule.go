@@ -42,20 +42,22 @@ func toolMatches(ruleTool, name string) bool {
 		return true
 	}
 	rt := strings.ToLower(ruleTool)
-	n := strings.ToLower(name)
-	if rt == n {
+	n := canonicalizeTool(name)
+	rtCanon := canonicalizeTool(rt)
+	// exact or canonical match (run_command ↔ run_terminal_command)
+	if rt == strings.ToLower(name) || rtCanon == n || rt == n || rtCanon == strings.ToLower(name) {
 		return true
 	}
 	// class aliases
 	switch rt {
-	case "bash", "shell", "command":
-		return n == "run_command"
+	case "bash", "shell", "command", "run_command", "run_terminal_command":
+		return isShellTool(n)
 	case "read":
-		return n == "read_file" || n == "list_dir"
+		return n == "read_file" || n == "list_dir" || n == "list_directory"
 	case "edit", "write":
-		return n == "write_file" || n == "search_replace" || n == "apply_patch"
+		return isEditToolName(n)
 	case "grep", "search":
-		return n == "grep_search" || n == "codebase_search"
+		return n == "grep_search" || n == "grep" || n == "codebase_search" || n == "glob_file_search" || n == "glob" || n == "find_files"
 	case "plan":
 		return n == "write_plan" || n == "exit_plan_mode" || n == "enter_plan_mode"
 	case "mcp":
@@ -64,6 +66,43 @@ func toolMatches(ruleTool, name string) bool {
 	// prefix class: mcp_*
 	if strings.HasSuffix(rt, "*") {
 		return strings.HasPrefix(n, strings.TrimSuffix(rt, "*"))
+	}
+	return false
+}
+
+// canonicalizeTool maps Grok aliases to canonical tool names for policy.
+func canonicalizeTool(name string) string {
+	switch strings.ToLower(name) {
+	case "run_terminal_command":
+		return "run_command"
+	case "edit_file":
+		return "search_replace"
+	case "list_directory":
+		return "list_dir"
+	case "web_fetch":
+		return "fetch_url"
+	case "grep":
+		return "grep_search"
+	case "glob", "find_files":
+		return "glob_file_search"
+	case "ask_user":
+		return "ask_user_question"
+	case "get_command_or_subagent_output":
+		return "get_subagent_output"
+	default:
+		return strings.ToLower(name)
+	}
+}
+
+func isShellTool(name string) bool {
+	n := canonicalizeTool(name)
+	return n == "run_command"
+}
+
+func isEditToolName(name string) bool {
+	switch canonicalizeTool(name) {
+	case "write_file", "search_replace", "apply_patch":
+		return true
 	}
 	return false
 }
