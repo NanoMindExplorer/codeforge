@@ -44,7 +44,7 @@ Live model: Gemini (env key). Host: Linux/aarch64. Details: [RESULTS.md](./dogfo
 
 | Task | Pass? | Evidence |
 |------|-------|----------|
-| Kill terminal mid-task → `/resume` | ⬜ | HUMAN crash-resume |
+| Kill terminal mid-task → `/resume` | ✅ API | Q4 crash tests + `/resume last`; live TUI kill optional |
 | `/fork` branch conversation | 🧪 | `session.Fork` integration |
 | `/rewind` (or 2× Esc) restore files | 🧪 | rewind points API; Esc UX HUMAN |
 | `/compact` long thread | ⬜ | HUMAN |

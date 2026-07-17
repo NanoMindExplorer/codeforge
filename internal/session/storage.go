@@ -14,21 +14,23 @@ import (
 
 // Summary is the index entry (summary.json) for a session directory.
 type Summary struct {
-	ID           string    `json:"id"`
-	Slug         string    `json:"slug"`
-	Title        string    `json:"title,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	Provider     string    `json:"provider"`
-	Model        string    `json:"model"`
-	Workdir      string    `json:"workdir"`
-	Preview      string    `json:"preview"`
-	TotalCost    float64   `json:"total_cost"`
-	Tokens       int       `json:"tokens"`
-	MessageCount int       `json:"message_count"`
-	ParentID     string    `json:"parent_id,omitempty"` // fork source
-	Compacted    bool      `json:"compacted,omitempty"`
-	Format       string    `json:"format"` // "v2" directory layout
+	ID             string    `json:"id"`
+	Slug           string    `json:"slug"`
+	Title          string    `json:"title,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	Provider       string    `json:"provider"`
+	Model          string    `json:"model"`
+	Workdir        string    `json:"workdir"`
+	Preview        string    `json:"preview"`
+	TotalCost      float64   `json:"total_cost"`
+	Tokens         int       `json:"tokens"`
+	MessageCount   int       `json:"message_count"`
+	ParentID       string    `json:"parent_id,omitempty"` // fork source
+	PermissionMode string    `json:"permission_mode,omitempty"`
+	SessionMode    string    `json:"session_mode,omitempty"`
+	Compacted      bool      `json:"compacted,omitempty"`
+	Format         string    `json:"format"` // "v2" directory layout
 }
 
 // EncodeCWD URL-encodes a working directory for the sessions tree.
@@ -105,7 +107,43 @@ func writeJSON(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return writeFileAtomic(path, data, 0o644)
+}
+
+// writeFileAtomic writes via temp+rename so a crash mid-write leaves the previous
+// complete file intact (Q4.1 durability).
+func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".cf-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	ok := false
+	defer func() {
+		if !ok {
+			_ = os.Remove(tmpName)
+		}
+	}()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(mode); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return err
+	}
+	ok = true
+	return nil
 }
 
 func readJSON(path string, v any) error {

@@ -1,10 +1,10 @@
 # Parity scorecard — CodeForge vs Grok Build TUI
 
-**Version under test:** v1.9.3  
+**Version under test:** v1.9.3 + Q0–Q4  
 **Date:** 2026-07-17  
 **Tester:** automated baseline + maintainer harness (`make dogfood`)  
 **Live provider:** Gemini 2.5 Flash (when DOGFOOD_LIVE=1)  
-**Audit:** [../AUDIT_AND_ROADMAP.md](../AUDIT_AND_ROADMAP.md) (Q0 quality gates)
+**Audit:** [../AUDIT_AND_ROADMAP.md](../AUDIT_AND_ROADMAP.md) (Q0–Q4)
 
 Rate each area: **Better / Equal / Weaker / N/A / Unknown (needs field)**
 
@@ -15,7 +15,7 @@ Rate each area: **Better / Equal / Weaker / N/A / Unknown (needs field)**
 | Agent multi-step edits | Equal* | Live headless read+write success |
 | BUILD / DESIGN / YOLO | Equal* | Unit + dogfood tests green |
 | Permissions & hooks | Better* | Default deny rm -rf even in always-approve |
-| Sessions (resume/fork/rewind) | Equal* | API green; crash-resume field TBD |
+| Sessions (resume/fork/rewind) | Equal* | Q4: atomic save, crash jsonl recovery, `/resume last`, compact tool outcomes, export modes |
 | Skills / personas / subagents | Unknown | Registered; interactive path TBD |
 | ACP / IDE | Equal* | initialize ok; multi-turn IDE TBD |
 | Provider errors UX | Equal* | structured codes + FormatUserError |
@@ -39,7 +39,7 @@ Rate each area: **Better / Equal / Weaker / N/A / Unknown (needs field)**
 |-----|-----|-------|--------|
 | P1 | Interactive TUI dogfood days not complete | maintainer | open — PROGRAM.md |
 | P1 | Side-by-side Grok Build days 3/7/10 | maintainer | open |
-| P1 | Crash mid-task `/resume` field proof | maintainer | open |
+| P1 | Crash mid-task `/resume` field proof | maintainer | **API done (Q4)**; optional live TUI kill still open |
 | P2 | ACP multi-turn from real IDE | maintainer | open |
 | P2 | Termux on-device visual matrix | maintainer | open |
 

@@ -31,6 +31,10 @@ type Session struct {
 	Tokens    int                `json:"tokens"`
 	Preview   string             `json:"preview"`
 	ParentID  string             `json:"parent_id,omitempty"`
+	// PermissionMode is permissions.mode at last save (default|plan|always_approve|dont_ask). Q4.5
+	PermissionMode string `json:"permission_mode,omitempty"`
+	// SessionMode is BUILD|DESIGN|YOLO label at last save. Q4.5
+	SessionMode string `json:"session_mode,omitempty"`
 	// Format is "v2" for directory layout; empty/legacy for flat JSON.
 	Format string `json:"format,omitempty"`
 	// dir is the absolute session directory (v2); empty for legacy.
@@ -137,25 +141,29 @@ func (s *Session) Save() error {
 		return err
 	}
 	sum := Summary{
-		ID:           s.ID,
-		Slug:         s.Slug,
-		Title:        s.Title,
-		CreatedAt:    s.CreatedAt,
-		UpdatedAt:    s.UpdatedAt,
-		Provider:     s.Provider,
-		Model:        s.Model,
-		Workdir:      s.Workdir,
-		Preview:      s.Preview,
-		TotalCost:    s.TotalCost,
-		Tokens:       s.Tokens,
-		MessageCount: len(s.Messages),
-		ParentID:     s.ParentID,
-		Format:       "v2",
+		ID:             s.ID,
+		Slug:           s.Slug,
+		Title:          s.Title,
+		CreatedAt:      s.CreatedAt,
+		UpdatedAt:      s.UpdatedAt,
+		Provider:       s.Provider,
+		Model:          s.Model,
+		Workdir:        s.Workdir,
+		Preview:        s.Preview,
+		TotalCost:      s.TotalCost,
+		Tokens:         s.Tokens,
+		MessageCount:   len(s.Messages),
+		ParentID:       s.ParentID,
+		PermissionMode: s.PermissionMode,
+		SessionMode:    s.SessionMode,
+		Format:         "v2",
 	}
-	if err := writeJSON(filepath.Join(dir, "summary.json"), sum); err != nil {
+	// Write history first, then summary — a crash mid-save keeps a consistent
+	// prior pair, or a new history with stale summary (still loadable). Q4.1
+	if err := s.writeChatHistory(dir); err != nil {
 		return err
 	}
-	if err := s.writeChatHistory(dir); err != nil {
+	if err := writeJSON(filepath.Join(dir, "summary.json"), sum); err != nil {
 		return err
 	}
 	// Append a save event to updates.jsonl
@@ -182,18 +190,15 @@ func (s *Session) saveLegacy() error {
 
 func (s *Session) writeChatHistory(dir string) error {
 	path := filepath.Join(dir, "chat_history.jsonl")
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	enc := json.NewEncoder(f)
+	// Buffer full jsonl then atomic rename (Q4.1).
+	var b strings.Builder
+	enc := json.NewEncoder(&b)
 	for _, m := range s.Messages {
 		if err := enc.Encode(m); err != nil {
 			return err
 		}
 	}
-	return nil
+	return writeFileAtomic(path, []byte(b.String()), 0o644)
 }
 
 func (s *Session) appendUpdate(ev map[string]any) error {
@@ -312,21 +317,23 @@ func loadV2Dir(dir string) (*Session, error) {
 		msgs = nil
 	}
 	s := &Session{
-		ID:        sum.ID,
-		Slug:      sum.Slug,
-		Title:     sum.Title,
-		CreatedAt: sum.CreatedAt,
-		UpdatedAt: sum.UpdatedAt,
-		Provider:  sum.Provider,
-		Model:     sum.Model,
-		Workdir:   sum.Workdir,
-		Messages:  msgs,
-		TotalCost: sum.TotalCost,
-		Tokens:    sum.Tokens,
-		Preview:   sum.Preview,
-		ParentID:  sum.ParentID,
-		Format:    "v2",
-		dir:       dir,
+		ID:             sum.ID,
+		Slug:           sum.Slug,
+		Title:          sum.Title,
+		CreatedAt:      sum.CreatedAt,
+		UpdatedAt:      sum.UpdatedAt,
+		Provider:       sum.Provider,
+		Model:          sum.Model,
+		Workdir:        sum.Workdir,
+		Messages:       msgs,
+		TotalCost:      sum.TotalCost,
+		Tokens:         sum.Tokens,
+		Preview:        sum.Preview,
+		ParentID:       sum.ParentID,
+		PermissionMode: sum.PermissionMode,
+		SessionMode:    sum.SessionMode,
+		Format:         "v2",
+		dir:            dir,
 	}
 	if s.ID == "" {
 		s.ID = filepath.Base(dir)
@@ -535,6 +542,11 @@ func (s *Session) InfoText(maxContext int) string {
 	if s.ParentID != "" {
 		parent = "\n  Parent   : " + s.ParentID
 	}
+	modeLine := ""
+	if s.SessionMode != "" || s.PermissionMode != "" {
+		modeLine = fmt.Sprintf("\n  Modes    : session=%s perm=%s",
+			emptyDash(s.SessionMode), emptyDash(s.PermissionMode))
+	}
 	return fmt.Sprintf(`Session Info
   Title    : %s
   ID       : %s
@@ -545,11 +557,18 @@ func (s *Session) InfoText(maxContext int) string {
   Tokens   : %d%s
   Cost     : $%.4f
   Updated  : %s
-  Format   : %s%s`,
+  Format   : %s%s%s`,
 		title, s.ID, s.Workdir, s.Provider, s.Model,
 		len(s.Messages), s.Tokens, pct, s.TotalCost,
-		s.UpdatedAt.Format(time.RFC3339), s.Format, parent,
+		s.UpdatedAt.Format(time.RFC3339), s.Format, modeLine, parent,
 	)
+}
+
+func emptyDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
 }
 
 func truncate(s string, n int) string {

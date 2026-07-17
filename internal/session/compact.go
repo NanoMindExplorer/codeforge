@@ -76,7 +76,9 @@ func buildCompactSummary(msgs []provider.Message, hint string) string {
 		b.WriteByte('\n')
 	}
 	b.WriteString(fmt.Sprintf("Earlier conversation (%d messages):\n", len(msgs)))
-	userN, asstN := 0, 0
+	userN, asstN, toolN, callN := 0, 0, 0, 0
+	// Q4.4: preserve tool outcomes so the model retains edit/run results after compact.
+	var toolOutcomes []string
 	for _, m := range msgs {
 		switch m.Role {
 		case provider.RoleUser:
@@ -89,16 +91,45 @@ func buildCompactSummary(msgs []provider.Message, hint string) string {
 		case provider.RoleAssistant:
 			asstN++
 			if asstN <= 6 {
-				b.WriteString("- Assistant: ")
-				b.WriteString(truncate(m.Content, 120))
-				b.WriteByte('\n')
+				if strings.TrimSpace(m.Content) != "" {
+					b.WriteString("- Assistant: ")
+					b.WriteString(truncate(m.Content, 120))
+					b.WriteByte('\n')
+				}
+			}
+			for _, tc := range m.ToolCalls {
+				callN++
+				if callN <= 16 {
+					toolOutcomes = append(toolOutcomes, fmt.Sprintf(
+						"call %s(%s)", tc.Name, truncate(tc.Input, 80)))
+				}
 			}
 		case provider.RoleTool:
-			// skip tool noise
+			toolN++
+			if toolN <= 16 {
+				status := "ok"
+				if m.IsError {
+					status = "ERR"
+				}
+				name := m.ToolName
+				if name == "" {
+					name = "tool"
+				}
+				toolOutcomes = append(toolOutcomes, fmt.Sprintf(
+					"%s [%s]: %s", name, status, truncate(m.Content, 100)))
+			}
 		}
 	}
-	if userN > 8 || asstN > 6 {
-		b.WriteString(fmt.Sprintf("… (%d user, %d assistant turns total)\n", userN, asstN))
+	if len(toolOutcomes) > 0 {
+		b.WriteString("Tool outcomes (preserve facts):\n")
+		for _, line := range toolOutcomes {
+			b.WriteString("  · ")
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+	}
+	if userN > 8 || asstN > 6 || toolN > 16 {
+		b.WriteString(fmt.Sprintf("… (%d user, %d assistant, %d tool results total)\n", userN, asstN, toolN))
 	}
 	return strings.TrimSpace(b.String())
 }

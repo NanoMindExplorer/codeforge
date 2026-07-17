@@ -601,23 +601,14 @@ func (m *Model) executeSlashCommand(input string) tea.Cmd {
 		m.copySelectedBlock(meta)
 
 	case "sessions", "dashboard":
-		// list text view (picker is /resume)
+		// list text view with preview (Q4.2); picker is /resume
 		if len(args) == 0 {
 			list, err := session.ListForWorkdir(m.workdir, 15)
 			if err != nil {
 				m.chat.AddSystemMessage("⚠ " + err.Error())
 				return nil
 			}
-			if len(list) == 0 {
-				m.chat.AddSystemMessage("No saved sessions. Use /resume or just chat.")
-				return nil
-			}
-			var sb strings.Builder
-			sb.WriteString("Sessions (/resume picker · /sessions <id>):\n")
-			for _, s := range list {
-				sb.WriteString(fmt.Sprintf("  %s  %s\n    %s\n", s.ID, s.Slug, s.Preview))
-			}
-			m.chat.AddSystemMessage(sb.String())
+			m.chat.AddSystemMessage(session.FormatResumeList(list, 15))
 		} else {
 			s, err := session.Load(args[0])
 			if err != nil {
@@ -628,8 +619,34 @@ func (m *Model) executeSlashCommand(input string) tea.Cmd {
 		}
 
 	case "resume":
+		// /resume          → interactive picker
+		// /resume last     → newest for this cwd (Q4.2)
+		// /resume <id>     → load by id
+		// /resume list     → text table with previews
 		if len(args) == 0 {
 			m.openSessionPicker()
+			return nil
+		}
+		if strings.EqualFold(args[0], "list") || strings.EqualFold(args[0], "ls") {
+			list, err := session.ListForWorkdir(m.workdir, 15)
+			if err != nil {
+				m.chat.AddSystemMessage("⚠ " + err.Error())
+				return nil
+			}
+			m.chat.AddSystemMessage(session.FormatResumeList(list, 15))
+			return nil
+		}
+		if strings.EqualFold(args[0], "last") || strings.EqualFold(args[0], "latest") {
+			s, err := session.LastForWorkdir(m.workdir)
+			if err != nil {
+				m.chat.AddSystemMessage("⚠ " + err.Error())
+				return nil
+			}
+			if s == nil {
+				m.chat.AddSystemMessage("No sessions for this project yet. Chat first, then /resume last.")
+				return nil
+			}
+			m.applySession(s)
 			return nil
 		}
 		s, err := session.Load(args[0])

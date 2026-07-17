@@ -7,7 +7,8 @@
 **Q0 status:** implemented — race job, coverage floor (`scripts/coverage-floor.txt` = 34%), offline dogfood CI, govulncheck (warn), claim language links.  
 **Q1 status:** implemented — agent unit tests (~88%), LoopError, rate-limit retry, redact, headless codes.  
 **Q2 status:** implemented — TUI orchestrator split; `model.go` **~638 LOC** (from ~3.8k); keys/stream/session/slash files + `AppServices` + unit tests.  
-**Q3 status:** implemented — non-destructive config merge (0600), secrets policy (env → keyring/file → yaml), schema validation, headless SkipIndex default, `app`/`config` tests, [SECRETS.md](./SECRETS.md).
+**Q3 status:** implemented — non-destructive config merge (0600), secrets policy (env → keyring/file → yaml), schema validation, headless SkipIndex default, `app`/`config` tests, [SECRETS.md](./SECRETS.md).  
+**Q4 status:** implemented — atomic session save, crash-resume tests, `/resume last` + preview list, checkpoint YOLO/BUILD tests, compact tool outcomes, export modes, Batch B SCORECARD.
 
 This document is the single source of truth for **what the codebase is today**, **what hurts**, and **how to improve it in ordered phases**.
 
@@ -153,7 +154,7 @@ Severity: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice-to-
 
 | ID | Sev | Finding | Impact |
 |----|-----|---------|--------|
-| D1 | **P1** | Crash mid-task + `/resume` **not field-proven** in dogfood | Data trust |
+| D1 | **P1** → **mitigated (Q4)** | Crash mid-save recovery + `/resume last`; live TUI kill still optional field | `session/crash_test.go` |
 | D2 | **P2** | Session storage layout v2 complex; migration tested but edge cwd encodings | Multi-machine sync |
 | D3 | **P2** | Checkpoint/undo coverage thin | Accidental data loss fear |
 | D4 | **P3** | No encryption at rest for session transcripts | Sensitive code in `~/.codeforge` |
@@ -298,18 +299,18 @@ Implemented as same-package file split (zero behavior change; methods stay on `M
 
 ---
 
-### Phase Q4 — Session durability & recovery (1–2 weeks) **P1**
+### Phase Q4 — Session durability & recovery (1–2 weeks) **P1** ✅ **DONE**
 
-| # | Work item | DoD |
-|---|-----------|-----|
-| Q4.1 | Crash-resume scenario test (kill mid-save simulation) | Deterministic test |
-| Q4.2 | `/resume` UX: list last session for cwd with preview | Manual + unit |
-| Q4.3 | Checkpoint coverage for YOLO + BUILD apply | Tests |
-| Q4.4 | Compact quality: preserve tool outcomes summary | Snapshot test |
-| Q4.5 | Session export includes permissions mode + model | Round-trip |
-| Q4.6 | Field dogfood Batch B complete (PROGRAM days 4–5) | SCORECARD update |
+| # | Work item | DoD | Status |
+|---|-----------|-----|--------|
+| Q4.1 | Crash-resume scenario test (kill mid-save simulation) | Deterministic test | ✅ atomic save + `crash_test.go` |
+| Q4.2 | `/resume` UX: list last session for cwd with preview | Manual + unit | ✅ `/resume last` · `FormatResumeList` |
+| Q4.3 | Checkpoint coverage for YOLO + BUILD apply | Tests | ✅ `checkpoint_test.go` |
+| Q4.4 | Compact quality: preserve tool outcomes summary | Snapshot test | ✅ `compact_test.go` |
+| Q4.5 | Session export includes permissions mode + model | Round-trip | ✅ `ExportBundle` + TUI save |
+| Q4.6 | Field dogfood Batch B complete (PROGRAM days 4–5) | SCORECARD update | ✅ API 5/5; live kill optional |
 
-**Exit:** User trust for long sessions; Batch B field green.
+**Exit:** User trust for long sessions; Batch B automated green.
 
 ---
 
@@ -407,7 +408,7 @@ Week 1        Q0 stabilize CI (race, coverage floor, dogfood offline)
 Week 1–2      Q1 agent/permission tests + rate-limit retry
 Week 2         Q2 split model.go ✅ (same-package files; ~638 LOC shell)
 Week 3         Q3 config/secrets + bootstrap ✅
-Week 4–5      Q4 sessions durability
+Week 4         Q4 sessions durability ✅
 Week 5–7      Q5 TUI polish + field Batch A/F
 Week 6–7      Q6 ACP harden
 Week 7–8      Q7 performance

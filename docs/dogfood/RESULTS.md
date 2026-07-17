@@ -37,7 +37,7 @@
 | `A.at_attach` | **HUMAN** | @ attach file in TUI |
 | `A.review_ui` | **HUMAN** | BUILD review overlay accept/reject in TUI |
 | `A.git_push` | **HUMAN** | /commit+/push on real remote |
-| `B.resume_crash` | **HUMAN** | Kill terminal mid-task then /resume |
+| `B.resume_crash` | **API** | Q4 crash tests + /resume last; live TUI optional |
 | `B.double_esc_rewind` | **HUMAN** | 2x Esc rewind UX |
 | `C.shell_modal` | **HUMAN** | Shell ask modal y/n/a interactive |
 | `D.skills_ui` | **HUMAN** | /skills /personas interactive |

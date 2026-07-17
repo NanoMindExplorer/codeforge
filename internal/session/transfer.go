@@ -8,21 +8,40 @@ import (
 	"strings"
 )
 
+// ExportBundle is the portable session JSON (Q4.5 includes modes + model).
+type ExportBundle struct {
+	Session
+	ExportVersion int    `json:"export_version"`
+	ExportedAt    string `json:"exported_at,omitempty"`
+}
+
 // Export writes a session (by ID) to destPath as a single JSON bundle.
+// Includes provider, model, permission_mode, and session_mode (Q4.5).
 func Export(id, destPath string) error {
 	s, err := Load(id)
 	if err != nil {
 		return err
 	}
-	// Ensure full messages loaded
-	data, err := json.MarshalIndent(s, "", "  ")
+	exported := s.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z")
+	if s.UpdatedAt.IsZero() {
+		exported = ""
+	}
+	bundle := ExportBundle{
+		Session:       *s,
+		ExportVersion: 2,
+		ExportedAt:    exported,
+	}
+	// clear non-serializable runtime field
+	bundle.dir = ""
+	data, err := json.MarshalIndent(bundle, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(destPath, data, 0644)
+	return writeFileAtomic(destPath, data, 0o644)
 }
 
 // Import reads a session JSON file into the sessions dir (v2 layout).
+// Accepts raw Session or ExportBundle (Q4.5).
 func Import(srcPath string) (*Session, error) {
 	data, err := os.ReadFile(srcPath)
 	if err != nil {

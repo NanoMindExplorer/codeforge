@@ -54,6 +54,11 @@ func (m *Model) saveSession() {
 	if cur, err := m.providerReg.Current(); err == nil {
 		m.session.Model = cur.Model()
 	}
+	// Q4.5: persist modes for export/resume fidelity
+	m.session.SessionMode = m.sessionMode.Label()
+	if m.perm != nil {
+		m.session.PermissionMode = string(m.perm.GetMode())
+	}
 	_ = m.session.Save()
 }
 
@@ -248,8 +253,33 @@ func (m *Model) applySession(s *session.Session) {
 			_ = cur.SetModel(s.Model)
 		}
 	}
+	// Restore session write mode when persisted (Q4.5)
+	if s.SessionMode != "" {
+		switch strings.ToUpper(s.SessionMode) {
+		case "BUILD":
+			m.setSessionMode(tool.SessionBuild)
+		case "DESIGN":
+			m.setSessionMode(tool.SessionDesign)
+		case "YOLO":
+			m.setSessionMode(tool.SessionYolo)
+		}
+	}
 	m.syncWriteMode() // rebind plan.md path for this session
-	m.chat.AddSystemMessage(fmt.Sprintf("✓ Resumed session %s", s.ID))
+	preview := s.Preview
+	if preview == "" && len(s.Messages) > 0 {
+		preview = truncateStr(s.Messages[0].Content, 60)
+	}
+	msg := fmt.Sprintf("✓ Resumed session %s", s.ID)
+	if s.Model != "" {
+		msg += " · " + s.Model
+	}
+	if s.SessionMode != "" {
+		msg += " · " + s.SessionMode
+	}
+	if preview != "" {
+		msg += "\n  " + preview
+	}
+	m.chat.AddSystemMessage(msg)
 	m.toast = components.NewToast("Session resumed", "success", 2*time.Second)
 }
 

@@ -21,12 +21,19 @@ type Entry struct {
 }
 
 // Dir returns ~/.codeforge/checkpoints/<sessionID>
+// Override root with CODEFORGE_CHECKPOINTS_DIR (tests / portable installs).
 func Dir(sessionID string) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	var root string
+	if d := os.Getenv("CODEFORGE_CHECKPOINTS_DIR"); d != "" {
+		root = d
+	} else {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		root = filepath.Join(home, ".codeforge", "checkpoints")
 	}
-	dir := filepath.Join(home, ".codeforge", "checkpoints", sessionID)
+	dir := filepath.Join(root, sessionID)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
@@ -45,7 +52,7 @@ func Save(sessionID, absPath, relPath, oldContent string) (string, error) {
 	metaName := fmt.Sprintf("%s_%s.meta", id, safe)
 	dataName := fmt.Sprintf("%s_%s.data", id, safe)
 
-	meta := fmt.Sprintf("%s\n%s\n%s\n", absPath, relPath, time.Now().Format(time.RFC3339))
+	meta := fmt.Sprintf("%s\n%s\n%s\n", absPath, relPath, time.Now().Format(time.RFC3339Nano))
 	if err := os.WriteFile(filepath.Join(dir, metaName), []byte(meta), 0644); err != nil {
 		return "", err
 	}
@@ -135,7 +142,11 @@ func metaTime(metaPath string) (time.Time, bool) {
 	}
 	lines := strings.SplitN(string(b), "\n", 4)
 	if len(lines) >= 3 {
-		if ts, err := time.Parse(time.RFC3339, strings.TrimSpace(lines[2])); err == nil {
+		tsRaw := strings.TrimSpace(lines[2])
+		if ts, err := time.Parse(time.RFC3339Nano, tsRaw); err == nil {
+			return ts, true
+		}
+		if ts, err := time.Parse(time.RFC3339, tsRaw); err == nil {
 			return ts, true
 		}
 	}
