@@ -1,9 +1,10 @@
 # Parity scorecard — CodeForge vs Grok Build TUI
 
-**Version under test:** v1.9.0  
-**Date:** 2026-07-16  
+**Version under test:** v1.9.3  
+**Date:** 2026-07-17  
 **Tester:** automated baseline + maintainer harness (`make dogfood`)  
-**Live provider:** Gemini 2.5 Flash  
+**Live provider:** Gemini 2.5 Flash (when DOGFOOD_LIVE=1)  
+**Audit:** [../AUDIT_AND_ROADMAP.md](../AUDIT_AND_ROADMAP.md) (Q0 quality gates)
 
 Rate each area: **Better / Equal / Weaker / N/A / Unknown (needs field)**
 

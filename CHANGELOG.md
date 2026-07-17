@@ -7,6 +7,12 @@ Automated readiness: `make release-gate` (see [docs/RELEASE_GATE.md](./docs/RELE
 
 ## [1.9.3] — 2026-07-16
 
+### Quality gates (Q0) — post-tag main
+
+- CI jobs: coverage floor (`scripts/coverage-floor.txt`), `-race` critical packages, offline dogfood, govulncheck (warn).
+- `make coverage` · `make test-race` · `make dogfood-offline` · `make govulncheck`.
+- README explicit claim table; SCORECARD/AUDIT stamps aligned; `docs/AUDIT_AND_ROADMAP.md` Q0 marked done.
+
 ### Onboarding brand
 
 - First-run / welcome / CLI banner: **ASCII art “CodeForge”** with smaller **By NanoMindExplorer** byline.

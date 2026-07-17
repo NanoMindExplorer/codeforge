@@ -31,18 +31,27 @@ else
   bad "gofmt (run: make fmt)"
 fi
 
-# 2. Tests + build
-if GOSUMDB=off go test ./... >/tmp/cf-gate-test.log 2>&1; then
-  pass "go test ./..."
+# 2. Tests + coverage floor (Q0.2)
+if bash scripts/coverage-check.sh >/tmp/cf-gate-cover.log 2>&1; then
+  pass "go test + coverage floor"
+  tail -3 /tmp/cf-gate-cover.log || true
 else
-  bad "go test (see /tmp/cf-gate-test.log)"
-  tail -20 /tmp/cf-gate-test.log || true
+  bad "coverage (see /tmp/cf-gate-cover.log)"
+  tail -20 /tmp/cf-gate-cover.log || true
 fi
 
 if GOSUMDB=off go vet ./... >/tmp/cf-gate-vet.log 2>&1; then
   pass "go vet"
 else
   bad "go vet"
+fi
+
+# 2b. Race on critical packages (Q0.1) — soft-fail only if CGO/race unavailable
+if bash scripts/test-race.sh >/tmp/cf-gate-race.log 2>&1; then
+  pass "go test -race (critical packages)"
+else
+  bad "race tests (see /tmp/cf-gate-race.log)"
+  tail -30 /tmp/cf-gate-race.log || true
 fi
 
 CGO_ENABLED=0 go build -ldflags="-s -w -X main.ProjectVersion=${VER}" -o /tmp/codeforge-gate ./cmd/codeforge/
@@ -68,13 +77,21 @@ fi
 [[ -f CHANGELOG.md ]] && grep -q "\[${VER}\]" CHANGELOG.md && pass "CHANGELOG has [${VER}]" || bad "CHANGELOG missing [${VER}]"
 
 # 4. Dogfood / gate docs present
-for f in docs/DOGFOOD.md docs/dogfood/SCORECARD.md docs/dogfood/BATCH_F.md docs/RELEASE_GATE.md; do
+for f in docs/DOGFOOD.md docs/dogfood/SCORECARD.md docs/dogfood/BATCH_F.md docs/RELEASE_GATE.md docs/AUDIT_AND_ROADMAP.md; do
   if [[ -f "$f" ]]; then
     pass "$f"
   else
     bad "missing $f"
   fi
 done
+
+# 4b. Offline dogfood suite (Q0.3)
+if DOGFOOD_LIVE=0 bash scripts/dogfood-run.sh >/tmp/cf-gate-dogfood.log 2>&1; then
+  pass "dogfood offline (DOGFOOD_LIVE=0)"
+else
+  bad "dogfood offline (see /tmp/cf-gate-dogfood.log)"
+  tail -30 /tmp/cf-gate-dogfood.log || true
+fi
 
 # 5. Headless no_provider contract (no keys)
 (

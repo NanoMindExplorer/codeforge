@@ -14,13 +14,16 @@ make release-gate
 | # | Check | Tool |
 |---|--------|------|
 | G1 | Version SSOT consistent | `make check-version` |
-| G2 | Unit/integration tests | `go test ./...` |
+| G2 | Unit/integration tests + **coverage floor** | `make coverage` (floor in `scripts/coverage-floor.txt`) |
 | G3 | Vet + build + `codeforge version` | `make ci` |
 | G4 | Binary size &lt; 30 MiB | release-gate |
 | G5 | Packaging files present (install, Formula, Termux, release.yml) | release-gate |
 | G6 | CHANGELOG section for VERSION | release-gate |
 | G7 | Headless `no_provider` exit 2 | release-gate |
 | G8 | Terminal env smoke (color/flags) | `scripts/smoke-matrix.sh` |
+| G9 | **Race** on critical packages | `make test-race` |
+| G10 | **Offline dogfood** | `make dogfood-offline` |
+| G11 | govulncheck (warn in CI) | `make govulncheck` |
 
 ## Human / field (dogfood)
 

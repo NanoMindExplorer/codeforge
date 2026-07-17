@@ -1,8 +1,10 @@
 # CodeForge comprehensive audit & improvement roadmap
 
 **Audit date:** 2026-07-17  
-**Baseline:** `v1.9.3` (`e9aaf14` on `main`)  
+**Baseline:** `v1.9.3` (`main`)  
 **Scope:** entire Go module `github.com/codeforge/tui`, scripts, CI, docs, packaging  
+
+**Q0 status:** implemented — race job, coverage floor (`scripts/coverage-floor.txt` = 33%), offline dogfood CI, govulncheck (warn), claim language links.
 
 This document is the single source of truth for **what the codebase is today**, **what hurts**, and **how to improve it in ordered phases**.
 
@@ -214,18 +216,18 @@ Likelihood   |  R3 termux  P1 index    T2 no agent tests
 
 Naming: **Phase Qx** = Quality/repair track (distinct from historical Grok parity phases 0–9 / W1–W4).
 
-### Phase Q0 — Stabilize & instrument (3–5 days)
+### Phase Q0 — Stabilize & instrument (3–5 days) ✅ **DONE**
 
 **Goal:** No silent production foot-guns; make quality measurable.
 
-| # | Work item | DoD |
-|---|-----------|-----|
-| Q0.1 | Add `go test -race` job (or `make test-race` on linux) for `agent`, `tool`, `session`, `acp` | CI green with race detector on critical packages |
-| Q0.2 | Add coverage report artifact; fail if total coverage **drops** below current floor (e.g. 33%) | Cover profile in CI |
-| Q0.3 | Wire `make dogfood` offline (`DOGFOOD_LIVE=0`) into CI weekly or on `main` | Job exists; FAIL blocks merge when offline suite fails |
-| Q0.4 | Fix SCORECARD / AUDIT version stamps to v1.9.3 | Docs match tag |
-| Q0.5 | `govulncheck ./...` in CI (warn then harden) | Job present |
-| Q0.6 | Document exact claims language in README (link AUDIT + PROGRAM) | No overclaim |
+| # | Work item | DoD | Status |
+|---|-----------|-----|--------|
+| Q0.1 | `go test -race` on critical packages | CI job `race` + `make test-race` | ✅ (skips on platforms without race, e.g. android/arm64) |
+| Q0.2 | Coverage floor | `scripts/coverage-check.sh` + floor file **33%** + artifact | ✅ |
+| Q0.3 | Offline dogfood in CI | job `dogfood-offline` + `make dogfood-offline` | ✅ |
+| Q0.4 | SCORECARD / AUDIT stamps v1.9.3 | Docs match tag | ✅ |
+| Q0.5 | `govulncheck ./...` warn mode | CI job + `make govulncheck` | ✅ (`continue-on-error` / non-strict) |
+| Q0.6 | README claim table + AUDIT/PROGRAM links | No overclaim | ✅ |
 
 **Exit:** CI measures race + coverage floor + offline dogfood.
 

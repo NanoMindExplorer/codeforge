@@ -22,15 +22,27 @@ CodeForge is a single-binary TUI that puts a multi-provider AI coding agent in y
 
 CodeForge **v1.9.3** is a **Grok Build TUI–compatible** coding agent with **Grok 4.5** (xAI) as a first-class model, full Grok tool names (`web_search`, `run_terminal_command`, `spawn_subagent`, …), plus ACP for IDEs.
 
-**Dogfood status:** automated + live headless evidence is green (`make dogfood`); multi-day interactive TUI field program is in [docs/dogfood/PROGRAM.md](./docs/dogfood/PROGRAM.md) — full “1:1 daily driver” is not claimed until that program completes.
+### What we claim (and what we don’t)
 
-→ Roadmap: **[docs/GROK_PARITY_ROADMAP.md](./docs/GROK_PARITY_ROADMAP.md)** · Dogfood: **[docs/DOGFOOD.md](./docs/DOGFOOD.md)** · ACP: **[docs/ACP.md](./docs/ACP.md)** · Reasoning: **[docs/REASONING.md](./docs/REASONING.md)** · Pager: **[docs/PAGER.md](./docs/PAGER.md)** · Skills: **[docs/SKILLS.md](./docs/SKILLS.md)** · Subagents: **[docs/SUBAGENTS.md](./docs/SUBAGENTS.md)**
+| Claim | Status | Evidence |
+|-------|--------|----------|
+| Grok-compatible **workflows** (tools, modes, sessions, ACP, headless) | **Yes** | Feature set + `make dogfood` / tests |
+| Safe defaults for dangerous shell + DESIGN write gate | **Yes** | permission + staged tests |
+| Early-stable **public binary** releases | **Yes** | tag `v1.9.3` + GitHub Releases |
+| **“1:1 Grok daily driver”** for all interactive TUI use | **Not yet** | Needs [dogfood PROGRAM](./docs/dogfood/PROGRAM.md) field days |
+| Production-hardened multi-tenant SaaS | **No** | Out of scope |
+
+**Quality gates:** [docs/AUDIT_AND_ROADMAP.md](./docs/AUDIT_AND_ROADMAP.md) · [docs/RELEASE_GATE.md](./docs/RELEASE_GATE.md) · CI: test+coverage · race · offline dogfood · govulncheck (warn)
+
+**Dogfood:** automated suite via `make dogfood` / `make dogfood-offline`; multi-day interactive program: [docs/dogfood/PROGRAM.md](./docs/dogfood/PROGRAM.md).
+
+→ Roadmap: **[docs/GROK_PARITY_ROADMAP.md](./docs/GROK_PARITY_ROADMAP.md)** · Dogfood: **[docs/DOGFOOD.md](./docs/DOGFOOD.md)** · Onboarding: **[docs/ONBOARDING.md](./docs/ONBOARDING.md)** · Errors: **[docs/ERRORS.md](./docs/ERRORS.md)** · ACP: **[docs/ACP.md](./docs/ACP.md)** · Reasoning: **[docs/REASONING.md](./docs/REASONING.md)** · Pager: **[docs/PAGER.md](./docs/PAGER.md)** · Skills: **[docs/SKILLS.md](./docs/SKILLS.md)** · Subagents: **[docs/SUBAGENTS.md](./docs/SUBAGENTS.md)**
 
 ### Honest remaining gaps (Could)
 
 - Restricted environments without Landlock (process=none) — soft+bwrap still apply · [docs/SANDBOX.md](./docs/SANDBOX.md)  
 - Niche Grok-only UX (billing OAuth)  
-- Field dogfood scores are maintainer-owned (see [docs/RELEASE_GATE.md](./docs/RELEASE_GATE.md))
+- Interactive field dogfood incomplete · maintainability debt (`model.go`) — see [AUDIT](./docs/AUDIT_AND_ROADMAP.md)
 
 ## Table of contents
 
@@ -968,10 +980,13 @@ CI (GitHub Actions): on push/PR runs `check-version`, **gofmt**, `go test`, `go 
 Local gates:
 
 ```bash
-make ci                 # check-version + fmt-check + vet + test + build
-make bump V=1.9.1       # bump VERSION + all string locations
-bash scripts/update-formula.sh v1.9.0   # after release: fill Formula sha256
-make release-gate       # automated public-ready checks (includes gofmt)
+make ci                 # check-version + fmt-check + vet + coverage floor + build
+make test-race          # -race on agent/tool/session/acp/provider/permission
+make dogfood-offline    # measurable dogfood without live API
+make govulncheck        # vuln scan (warn; GOVULNCHECK_STRICT=1 to fail)
+make release-gate       # full automated public-ready gate
+make bump V=1.9.4       # bump VERSION + all string locations
+bash scripts/update-formula.sh v1.9.3   # after release: fill Formula sha256
 ```
 
 ---

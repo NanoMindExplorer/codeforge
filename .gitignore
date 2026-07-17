@@ -73,3 +73,6 @@ keystore.properties
 
 # Phase G6 subagent worktrees
 .codeforge/worktrees/
+
+coverage.out
+coverage-summary.txt
