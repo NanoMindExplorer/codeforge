@@ -159,10 +159,13 @@ func runTUI(args []string) {
 		}
 	}
 
+	// Q7.1: skip sync index on TUI cold start (async build after UI is up).
+	// CODEFORGE_INDEX=1 forces sync index inside Bootstrap.
 	rt, err := app.Bootstrap(app.Options{
 		WorkDir:        workdir,
 		Sandbox:        sandboxFlag,
 		SandboxFlagSet: sandboxSet,
+		SkipIndex:      true,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

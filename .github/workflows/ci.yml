@@ -34,14 +34,19 @@ jobs:
         run: |
           VER=$(tr -d '[:space:]' < VERSION)
           CGO_ENABLED=0 go build -ldflags="-s -w -X main.ProjectVersion=${VER}" -o codeforge ./cmd/codeforge/
-      - name: Binary size
-        run: |
-          SIZE=$(stat -c%s codeforge)
-          echo "binary bytes=$SIZE"
-          test "$SIZE" -lt 31457280
+      - name: Binary size budget (Q7.3)
+        run: bash scripts/binary-size.sh
+      - name: Upload size report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: binary-size
+          path: binary-size.txt
+          if-no-files-found: warn
       - name: Version binary smoke
         run: |
           VER=$(tr -d '[:space:]' < VERSION)
+          CGO_ENABLED=0 go build -ldflags="-s -w -X main.ProjectVersion=${VER}" -o codeforge ./cmd/codeforge/
           out=$(./codeforge version)
           echo "$out"
           echo "$out" | grep -q "$VER"

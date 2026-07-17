@@ -310,6 +310,8 @@ func (m Model) Init() tea.Cmd {
 		m.context.Init(),
 		spinnerTick(),
 		listenPermAsk(m.permReq),
+		// Q7.1: lazy codebase index in background (Bootstrap skips sync build)
+		buildIndexAsync(m.workdir),
 		// Kick context pane live on start
 		func() tea.Msg {
 			return ContextUpdateMsg{Refresh: true}
@@ -409,6 +411,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ToastMsg:
 		m.toast = components.NewToast(msg.Text, msg.Kind, 3*time.Second)
+
+	case IndexReadyMsg:
+		// Q7.1: background index finished
+		if msg.Err != nil {
+			m.toast = components.NewToast("Index failed", "warning", 3*time.Second)
+		} else if msg.Files > 0 {
+			m.toast = components.NewToast(fmt.Sprintf("Index: %d files", msg.Files), "info", 2*time.Second)
+		}
 
 	case GitHubStatusMsg:
 		if msg.OK {

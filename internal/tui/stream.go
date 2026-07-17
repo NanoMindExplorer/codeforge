@@ -326,6 +326,13 @@ type ToastMsg struct {
 	Kind string
 }
 
+// IndexReadyMsg is delivered when lazy codebase index finishes (Q7.1).
+type IndexReadyMsg struct {
+	Files   int
+	Symbols int
+	Err     error
+}
+
 // GitHubStatusMsg carries async auth discovery results.
 type GitHubStatusMsg struct {
 	User string

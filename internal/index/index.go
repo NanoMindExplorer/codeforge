@@ -32,8 +32,17 @@ type Index struct {
 	root string
 }
 
+// ProgressFunc is called during Build with files indexed so far and last path (Q7.1).
+// May be nil. Called without holding idx.mu.
+type ProgressFunc func(files int, lastRel string)
+
 // Build walks the workspace and indexes text files.
 func Build(root string) (*Index, error) {
+	return BuildWithProgress(root, nil)
+}
+
+// BuildWithProgress is Build plus optional progress callbacks (Q7.1 lazy/async index).
+func BuildWithProgress(root string, onProgress ProgressFunc) (*Index, error) {
 	idx := &Index{root: root}
 	ws := workspace.Get()
 	roots := []string{root}
@@ -89,13 +98,37 @@ func Build(root string) (*Index, error) {
 				Sample:  strings.ToLower(truncate(content, 8000)),
 				Lines:   strings.Count(content, "\n") + 1,
 			})
+			if onProgress != nil && len(idx.docs)%50 == 0 {
+				onProgress(len(idx.docs), rel)
+			}
 			if len(idx.docs) >= 5000 {
 				return filepath.SkipAll
 			}
 			return nil
 		})
 	}
+	if onProgress != nil {
+		onProgress(len(idx.docs), "")
+	}
 	return idx, nil
+}
+
+// BuildResult is delivered on the channel from BuildAsync.
+type BuildResult struct {
+	Index *Index
+	Err   error
+}
+
+// BuildAsync indexes root on a background goroutine (Q7.1).
+// Non-blocking; caller receives one result then the channel is closed.
+func BuildAsync(root string) <-chan BuildResult {
+	ch := make(chan BuildResult, 1)
+	go func() {
+		idx, err := Build(root)
+		ch <- BuildResult{Index: idx, Err: err}
+		close(ch)
+	}()
+	return ch
 }
 
 // Search ranks documents for a free-text query.

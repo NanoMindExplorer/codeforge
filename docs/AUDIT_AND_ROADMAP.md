@@ -10,7 +10,8 @@
 **Q3 status:** implemented — non-destructive config merge (0600), secrets policy (env → keyring/file → yaml), schema validation, headless SkipIndex default, `app`/`config` tests, [SECRETS.md](./SECRETS.md).  
 **Q4 status:** implemented — atomic session save, crash-resume tests, `/resume last` + preview list, checkpoint YOLO/BUILD tests, compact tool outcomes, export modes, Batch B SCORECARD.  
 **Q5 status:** implemented — single StatusCard welcome, empty-state prompts, Ctrl+R/`/retry`, review/@ unit tests, English UI strings, settings tests, Batch F automated matrix.  
-**Q6 status:** implemented — WebSocket serve tests, per-session `Registry.Authorizer`, `codeforge/error` docs, multi-turn fixture + CI, session cancel tests.
+**Q6 status:** implemented — WebSocket serve tests, per-session `Registry.Authorizer`, `codeforge/error` docs, multi-turn fixture + CI, session cancel tests.  
+**Q7 status:** implemented — lazy async index, scrollback viewport budget, binary-size script, STREAMING_TOOLS + COST docs, CostDetail formula tests.
 
 This document is the single source of truth for **what the codebase is today**, **what hurts**, and **how to improve it in ordered phases**.
 
@@ -346,15 +347,15 @@ Implemented as same-package file split (zero behavior change; methods stay on `M
 
 ---
 
-### Phase Q7 — Performance & footprint (1 week) **P2**
+### Phase Q7 — Performance & footprint (1 week) **P2** ✅ **DONE**
 
-| # | Work item | DoD |
-|---|-----------|-----|
-| Q7.1 | Lazy index build; progress UI | Headless default skip remains |
-| Q7.2 | Scrollback virtualization audit (already partial) | Long session benchmark |
-| Q7.3 | Reduce default binary (build tags / smaller deps review) | Size budget tracked in CI |
-| Q7.4 | Stream tool-capable providers where API allows | Design note + optional path |
-| Q7.5 | Token/cost accuracy pass | Document formulas |
+| # | Work item | DoD | Status |
+|---|-----------|-----|--------|
+| Q7.1 | Lazy index build; progress UI | Headless skip remains | ✅ TUI async `BuildAsync` + toast |
+| Q7.2 | Scrollback virtualization audit | Long session budget | ✅ viewport timing + `BenchmarkView800` |
+| Q7.3 | Binary size budget | Tracked in CI | ✅ `scripts/binary-size.sh` soft/hard |
+| Q7.4 | Stream tool-capable providers | Design note | ✅ `docs/STREAMING_TOOLS.md` |
+| Q7.5 | Token/cost accuracy | Document formulas | ✅ `docs/COST.md` + `CostDetail` tests |
 
 **Exit:** Noticeably snappier cold start on Termux/SSH.
 
@@ -413,7 +414,7 @@ Week 3         Q3 config/secrets + bootstrap ✅
 Week 4         Q4 sessions durability ✅
 Week 5         Q5 TUI polish + Batch A/F automated ✅
 Week 6         Q6 ACP harden ✅
-Week 7–8      Q7 performance
+Week 7         Q7 performance ✅
 Week 8–9      Q8 security
 Week 9–10     Q9 packaging
 Week 1–12     Q10 dogfood (parallel human track all along)

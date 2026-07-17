@@ -41,10 +41,9 @@ type Runtime struct {
 type Options struct {
 	WorkDir string
 	Quiet   bool
-	// SkipIndex skips codebase index build (Q3.4). Headless/ACP default true;
-	// interactive TUI leaves this false so search tools see a fresh index.
-	// Override at runtime with CODEFORGE_INDEX=1 (force index) when SkipIndex
-	// would otherwise be true — callers check env themselves, or set SkipIndex.
+	// SkipIndex skips codebase index build (Q3.4 / Q7.1).
+	// Headless/ACP/TUI default skip for fast cold start; TUI builds async after Init.
+	// CODEFORGE_INDEX=1 forces a synchronous index during Bootstrap.
 	SkipIndex   bool
 	SkipMCP     bool
 	SkipPlugins bool

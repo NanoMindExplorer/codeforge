@@ -112,14 +112,34 @@ type Provider interface {
 	ValidateConfig() error
 }
 
+// CostBreakdown documents token→USD math (Q7.5). See docs/COST.md.
+type CostBreakdown struct {
+	ModelID      string
+	InputTokens  int
+	OutputTokens int
+	// InputPer1M / OutputPer1M are USD per 1M tokens from ModelInfo.
+	InputPer1M  float64
+	OutputPer1M float64
+	// TotalUSD = in*InputPer1M/1e6 + out*OutputPer1M/1e6
+	TotalUSD float64
+}
+
 // CostForModel returns USD cost for token counts using ModelInfo pricing.
+// Formula: (in * input_$/1M + out * output_$/1M) / 1_000_000
 func CostForModel(p Provider, modelID string, in, out int) float64 {
+	return CostDetail(p, modelID, in, out).TotalUSD
+}
+
+// CostDetail returns the full breakdown for audits and tests (Q7.5).
+func CostDetail(p Provider, modelID string, in, out int) CostBreakdown {
+	b := CostBreakdown{InputTokens: in, OutputTokens: out}
 	if p == nil {
-		return 0
+		return b
 	}
 	if modelID == "" {
 		modelID = p.Model()
 	}
+	b.ModelID = modelID
 	var chosen *ModelInfo
 	for i := range p.Models() {
 		m := p.Models()[i]
@@ -131,11 +151,15 @@ func CostForModel(p Provider, modelID string, in, out int) float64 {
 	if chosen == nil {
 		models := p.Models()
 		if len(models) == 0 {
-			return 0
+			return b
 		}
 		chosen = &models[0]
+		b.ModelID = chosen.ID
 	}
-	return float64(in)*chosen.InputCost/1_000_000 + float64(out)*chosen.OutputCost/1_000_000
+	b.InputPer1M = chosen.InputCost
+	b.OutputPer1M = chosen.OutputCost
+	b.TotalUSD = float64(in)*chosen.InputCost/1_000_000 + float64(out)*chosen.OutputCost/1_000_000
+	return b
 }
 
 type ModelInfo struct {

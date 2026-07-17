@@ -246,6 +246,8 @@ func runLoop(ctx context.Context, cfg Config, history []provider.Message, out ch
 }
 
 // completeWithRetries: reasoning unsupported retry + one rate_limit backoff retry.
+// Q7.4: tool-loop uses Complete (not Stream) for cross-provider tool reliability.
+// See docs/STREAMING_TOOLS.md for stream+tools design and provider matrix.
 func completeWithRetries(
 	ctx context.Context,
 	p provider.Provider,
