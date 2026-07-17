@@ -212,27 +212,32 @@ func (e *Engine) IsOff() bool {
 	return e.Profile == Off
 }
 
-// ResolveFromEnv picks profile: flag > CODEFORGE_SANDBOX > GROK_SANDBOX > config > off.
+// DefaultInteractive is the recommended sandbox when nothing is configured (Q8.1).
+// Opt out with config sandbox.profile: off or CODEFORGE_SANDBOX=off / --sandbox off.
+const DefaultInteractive = Workspace
+
+// ResolveFromEnv picks profile: flag > CODEFORGE_SANDBOX > GROK_SANDBOX > config > DefaultInteractive.
 func ResolveFromEnv(flagVal, configVal string) Profile {
 	for _, s := range []string{flagVal, os.Getenv("CODEFORGE_SANDBOX"), os.Getenv("GROK_SANDBOX"), configVal} {
 		if p, ok := ParseProfile(s); ok && s != "" {
 			return p
 		}
-		// empty string from flag means "not set"; ParseProfile("") → off which is valid
+		// empty string from flag means "not set"
 	}
-	// only config empty → off
-	if p, ok := ParseProfile(configVal); ok {
+	if p, ok := ParseProfile(configVal); ok && strings.TrimSpace(configVal) != "" {
 		return p
 	}
-	return Off
+	return DefaultInteractive
 }
 
 // ResolvePreferExplicit prefers non-empty flag over env/config.
+// When nothing is set, returns DefaultInteractive (workspace) — Q8.1.
 func ResolvePreferExplicit(flagSet bool, flagVal, configVal string) Profile {
 	if flagSet {
 		if p, ok := ParseProfile(flagVal); ok {
 			return p
 		}
+		// explicit empty flag → treat as off (opt-out)
 		return Off
 	}
 	for _, s := range []string{os.Getenv("CODEFORGE_SANDBOX"), os.Getenv("GROK_SANDBOX"), configVal} {
@@ -243,5 +248,5 @@ func ResolvePreferExplicit(flagSet bool, flagVal, configVal string) Profile {
 			return p
 		}
 	}
-	return Off
+	return DefaultInteractive
 }

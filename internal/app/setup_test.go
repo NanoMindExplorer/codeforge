@@ -85,9 +85,8 @@ sandbox:
 	if rt.Cfg == nil {
 		t.Fatal("expected default cfg fallback")
 	}
-	// default sandbox is off
-	if rt.Cfg.Sandbox.Profile != "off" && rt.Cfg.Sandbox.Profile != "" {
-		// Default() has off
+	// Q8.1: Default() sandbox is workspace (opt-out via config/env)
+	if rt.Cfg.Sandbox.Profile != "workspace" && rt.Cfg.Sandbox.Profile != "off" && rt.Cfg.Sandbox.Profile != "" {
 		t.Logf("sandbox profile after fallback: %q", rt.Cfg.Sandbox.Profile)
 	}
 }

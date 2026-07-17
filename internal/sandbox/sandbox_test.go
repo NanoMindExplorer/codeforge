@@ -146,3 +146,25 @@ func TestResolvePreferExplicit(t *testing.T) {
 		t.Fatal(p)
 	}
 }
+
+func TestDefaultInteractiveWhenUnset(t *testing.T) {
+	// Q8.1: empty env + empty config → workspace (not off)
+	t.Setenv("CODEFORGE_SANDBOX", "")
+	t.Setenv("GROK_SANDBOX", "")
+	p := ResolveFromEnv("", "")
+	if p != DefaultInteractive {
+		t.Fatalf("want DefaultInteractive (%s), got %s", DefaultInteractive, p)
+	}
+	if DefaultInteractive != Workspace {
+		t.Fatal("DefaultInteractive must be workspace")
+	}
+	p = ResolvePreferExplicit(false, "", "")
+	if p != Workspace {
+		t.Fatalf("want workspace, got %s", p)
+	}
+	// explicit flag opt-out
+	p = ResolvePreferExplicit(true, "off", "workspace")
+	if p != Off {
+		t.Fatalf("want off, got %s", p)
+	}
+}

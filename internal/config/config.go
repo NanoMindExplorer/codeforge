@@ -282,7 +282,8 @@ func Default() *Config {
 			AutoCompactPct: 0.85,
 		},
 		Sandbox: SandboxConfig{
-			Profile: "off",
+			// Q8.1: recommend workspace for interactive; set "off" to opt out.
+			Profile: "workspace",
 			Deny:    nil,
 		},
 		Skills: SkillsConfig{

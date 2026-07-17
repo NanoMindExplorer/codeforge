@@ -41,23 +41,36 @@ type Session struct {
 	dir string
 }
 
+// DirModeSessions is the permission for session directories (Q8.5).
+const DirModeSessions = 0o700
+
+// FileModeSession is the permission for session files on disk.
+const FileModeSession = 0o600
+
 // Dir returns the sessions root directory.
 // Override with CODEFORGE_SESSIONS_DIR for shared/SSH-synced storage.
+// Directories are created with mode 0700 (owner only).
 func Dir() (string, error) {
 	if d := os.Getenv("CODEFORGE_SESSIONS_DIR"); d != "" {
-		if err := os.MkdirAll(d, 0755); err != nil {
+		if err := os.MkdirAll(d, DirModeSessions); err != nil {
 			return "", err
 		}
+		_ = os.Chmod(d, DirModeSessions)
 		return d, nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(home, ".codeforge", "sessions")
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	// ~/.codeforge and sessions subdir
+	base := filepath.Join(home, ".codeforge")
+	_ = os.MkdirAll(base, DirModeSessions)
+	_ = os.Chmod(base, DirModeSessions)
+	dir := filepath.Join(base, "sessions")
+	if err := os.MkdirAll(dir, DirModeSessions); err != nil {
 		return "", err
 	}
+	_ = os.Chmod(dir, DirModeSessions)
 	return dir, nil
 }
 
@@ -185,7 +198,7 @@ func (s *Session) saveLegacy() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, FileModeSession)
 }
 
 func (s *Session) writeChatHistory(dir string) error {
@@ -198,7 +211,7 @@ func (s *Session) writeChatHistory(dir string) error {
 			return err
 		}
 	}
-	return writeFileAtomic(path, []byte(b.String()), 0o644)
+	return writeFileAtomic(path, []byte(b.String()), FileModeSession)
 }
 
 func (s *Session) appendUpdate(ev map[string]any) error {
@@ -207,7 +220,7 @@ func (s *Session) appendUpdate(ev map[string]any) error {
 		return err
 	}
 	path := filepath.Join(dir, "updates.jsonl")
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, FileModeSession)
 	if err != nil {
 		return err
 	}

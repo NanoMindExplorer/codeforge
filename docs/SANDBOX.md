@@ -14,11 +14,26 @@ In-process tools (`web_search`, LLM API) always keep network access — only **c
 
 | Profile | FS Read | FS Write | Child network | Use |
 |---------|---------|----------|---------------|-----|
-| `off` | unrestricted | unrestricted | allow | default |
+| `off` | unrestricted | unrestricted | allow | opt-out (was default) |
 | `workspace` | everywhere | CWD + `~/.codeforge` + `/tmp` | allow | daily coding |
 | `read-only` | everywhere | `~/.codeforge` + tmp only | **block** | review / explore |
 | `strict` | CWD + system paths | CWD + `~/.codeforge` + tmp | **block** | untrusted code |
 | `devbox` | everywhere | almost all except `/data` | allow | disposable VMs |
+
+## Default (Q8.1)
+
+Interactive TUI defaults to **`workspace`** when `sandbox.profile`, `CODEFORGE_SANDBOX`, and `--sandbox` are unset.
+
+```yaml
+# config.yaml — explicit opt-out
+sandbox:
+  profile: off
+```
+
+```bash
+codeforge --sandbox off
+export CODEFORGE_SANDBOX=off
+```
 
 ## Quick start
 

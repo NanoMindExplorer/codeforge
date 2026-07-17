@@ -66,9 +66,10 @@ func CwdGroupDir(workdir string) (string, error) {
 	}
 	enc := EncodeCWD(workdir)
 	dir := filepath.Join(root, enc)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, DirModeSessions); err != nil {
 		return "", err
 	}
+	_ = os.Chmod(dir, DirModeSessions)
 	// Write .cwd for long-path groups (always useful)
 	cwdFile := filepath.Join(dir, ".cwd")
 	if _, err := os.Stat(cwdFile); os.IsNotExist(err) {
@@ -76,7 +77,7 @@ func CwdGroupDir(workdir string) (string, error) {
 		if a, e := filepath.Abs(workdir); e == nil {
 			abs = a
 		}
-		_ = os.WriteFile(cwdFile, []byte(abs+"\n"), 0644)
+		_ = os.WriteFile(cwdFile, []byte(abs+"\n"), FileModeSession)
 	}
 	return dir, nil
 }
@@ -88,9 +89,10 @@ func SessionDir(workdir, id string) (string, error) {
 		return "", err
 	}
 	dir := filepath.Join(group, id)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, DirModeSessions); err != nil {
 		return "", err
 	}
+	_ = os.Chmod(dir, DirModeSessions)
 	return dir, nil
 }
 
@@ -107,16 +109,17 @@ func writeJSON(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	return writeFileAtomic(path, data, 0o644)
+	return writeFileAtomic(path, data, FileModeSession)
 }
 
 // writeFileAtomic writes via temp+rename so a crash mid-write leaves the previous
 // complete file intact (Q4.1 durability).
 func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, DirModeSessions); err != nil {
 		return err
 	}
+	_ = os.Chmod(dir, DirModeSessions)
 	tmp, err := os.CreateTemp(dir, ".cf-*.tmp")
 	if err != nil {
 		return err

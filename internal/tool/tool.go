@@ -412,6 +412,10 @@ func (s *ShellExec) Execute(input json.RawMessage) Result {
 	if strings.TrimSpace(in.Command) == "" {
 		return Result{Error: "command required"}
 	}
+	// Q8.3: reject null bytes / control tricks in command string
+	if strings.ContainsRune(in.Command, 0) {
+		return Result{Error: "command contains null byte"}
+	}
 
 	if in.Background {
 		// avoid import cycle: use callback set by registry/bootstrap
@@ -436,14 +440,21 @@ func (s *ShellExec) Execute(input json.RawMessage) Result {
 	ctx, cancel := context.WithTimeout(context.Background(), to)
 	defer cancel()
 
+	workdir := s.WorkDir
+	if abs, err := filepath.Abs(workdir); err == nil {
+		workdir = abs
+	}
+
 	sbx := sandbox.Global()
-	cmd, err := sbx.Command(ctx, in.Command)
+	cmd, err := sbx.CommandIn(ctx, workdir, in.Command)
 	if err != nil {
 		return Result{Error: "sandbox: " + err.Error()}
 	}
-	if cmd.Dir == "" {
-		cmd.Dir = s.WorkDir
-	}
+	// Q8.3: always pin cwd to tool WorkDir (never inherit process cwd).
+	cmd.Dir = workdir
+	// Q8.3: scrub env — inherit host but drop high-risk overrides; no caller-injected env.
+	cmd.Env = scrubShellEnv(os.Environ())
+
 	var outBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &outBuf
@@ -462,6 +473,36 @@ func (s *ShellExec) Execute(input json.RawMessage) Result {
 		return Result{Success: false, Output: output, Error: fmt.Sprintf("exit error: %v", runErr)}
 	}
 	return Result{Success: true, Output: output}
+}
+
+// scrubShellEnv filters environment for child shells (Q8.3).
+// Blocks LD_PRELOAD / DYLD_* injection and ACP serve secret; keeps provider keys
+// so nested CLI tools still work when needed.
+func scrubShellEnv(env []string) []string {
+	blocked := map[string]bool{
+		"LD_PRELOAD":             true,
+		"LD_LIBRARY_PATH":        true,
+		"DYLD_INSERT_LIBRARIES":  true,
+		"DYLD_LIBRARY_PATH":      true,
+		"BASH_ENV":               true,
+		"ENV":                    true,
+		"SHELLOPTS":              true,
+		"BASHOPTS":               true,
+		"CODEFORGE_AGENT_SECRET": true,
+	}
+	out := make([]string, 0, len(env))
+	for _, e := range env {
+		i := strings.IndexByte(e, '=')
+		if i <= 0 {
+			continue
+		}
+		key := e[:i]
+		if blocked[key] {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 // bgStart is wired from bgtask to avoid import cycles.

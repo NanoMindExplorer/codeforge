@@ -19,6 +19,25 @@ var patterns = []*regexp.Regexp{
 	regexp.MustCompile(`\b(sk-[A-Za-z0-9_\-]{20,})\b`),
 	regexp.MustCompile(`\b(xox[baprs]-[A-Za-z0-9\-]{10,})\b`),
 	regexp.MustCompile(`\b(AIza[0-9A-Za-z_\-]{20,})\b`),
+	// Q8.4 — expanded provider / SaaS tokens
+	regexp.MustCompile(`\b(xai-[A-Za-z0-9_\-]{20,})\b`),     // xAI
+	regexp.MustCompile(`\b(sk-ant-[A-Za-z0-9_\-]{20,})\b`),  // Anthropic
+	regexp.MustCompile(`\b(sk-proj-[A-Za-z0-9_\-]{20,})\b`), // OpenAI project keys
+	regexp.MustCompile(`\b(hf_[A-Za-z0-9]{20,})\b`),         // Hugging Face
+	regexp.MustCompile(`\b(hf_org_[A-Za-z0-9]{20,})\b`),
+	regexp.MustCompile(`\b(npm_[A-Za-z0-9]{20,})\b`),      // npm
+	regexp.MustCompile(`\b(pypi-[A-Za-z0-9_\-]{20,})\b`),  // PyPI
+	regexp.MustCompile(`\b(glpat-[A-Za-z0-9_\-]{20,})\b`), // GitLab PAT
+	regexp.MustCompile(`\b(ghu_[A-Za-z0-9_]{20,})\b`),     // GitHub user-to-server
+	regexp.MustCompile(`\b(ghs_[A-Za-z0-9_]{20,})\b`),     // GitHub server-to-server
+	regexp.MustCompile(`\b(sk_live_[A-Za-z0-9]{20,})\b`),  // Stripe live
+	regexp.MustCompile(`\b(sk_test_[A-Za-z0-9]{20,})\b`),  // Stripe test
+	regexp.MustCompile(`\b(rk_live_[A-Za-z0-9]{20,})\b`),
+	regexp.MustCompile(`\b(xoxe\.[A-Za-z0-9\-]{20,})\b`),  // Slack enterprise
+	regexp.MustCompile(`\b(SG\.[A-Za-z0-9_\-\.]{20,})\b`), // SendGrid
+	regexp.MustCompile(`\b(whsec_[A-Za-z0-9_\-]{16,})\b`), // Stripe webhook
+	regexp.MustCompile(`\b(dop_v1_[a-f0-9]{64})\b`),       // DigitalOcean
+	regexp.MustCompile(`\b(oai-?[A-Za-z0-9_\-]{20,})\b`),  // misc OpenAI-ish
 	// Private keys
 	regexp.MustCompile(`-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----`),
 	// JWT-ish
@@ -28,14 +47,22 @@ var patterns = []*regexp.Regexp{
 // SensitiveName reports filenames that should not be fully sent to models.
 func SensitiveName(name string) bool {
 	n := strings.ToLower(name)
+	base := n
+	if i := strings.LastIndex(n, "/"); i >= 0 {
+		base = n[i+1:]
+	}
 	switch {
-	case n == ".env" || strings.HasPrefix(n, ".env."):
+	case base == ".env" || strings.HasPrefix(base, ".env."):
 		return true
-	case strings.HasSuffix(n, ".pem"), strings.HasSuffix(n, ".key"), strings.HasSuffix(n, ".p12"), strings.HasSuffix(n, ".pfx"):
+	case strings.HasSuffix(base, ".pem"), strings.HasSuffix(base, ".key"), strings.HasSuffix(base, ".p12"), strings.HasSuffix(base, ".pfx"):
 		return true
-	case n == "id_rsa", n == "id_ed25519", n == "credentials.json", n == "service-account.json":
+	case base == "id_rsa", base == "id_ed25519", base == "id_ecdsa",
+		base == "credentials.json", base == "service-account.json",
+		base == "secrets.yaml", base == "secrets.yml", base == "secrets.toml":
 		return true
-	case strings.Contains(n, "secret") && (strings.HasSuffix(n, ".yml") || strings.HasSuffix(n, ".yaml") || strings.HasSuffix(n, ".json")):
+	case base == "netrc" || base == ".netrc" || base == ".npmrc" || base == ".pypirc":
+		return true
+	case strings.Contains(base, "secret") && (strings.HasSuffix(base, ".yml") || strings.HasSuffix(base, ".yaml") || strings.HasSuffix(base, ".json")):
 		return true
 	}
 	return false

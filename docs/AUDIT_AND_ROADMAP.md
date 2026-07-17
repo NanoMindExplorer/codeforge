@@ -361,18 +361,18 @@ Implemented as same-package file split (zero behavior change; methods stay on `M
 
 ---
 
-### Phase Q8 — Security hardening (1 week) **P1/P2**
+### Phase Q8 — Security hardening (1 week) **P1/P2** ✅ **DONE**
 
-| # | Work item | DoD |
-|---|-----------|-----|
-| Q8.1 | Default sandbox profile recommendation `workspace` for interactive (opt-out) | Doc + config default discussion |
-| Q8.2 | Permission prompt UX shows full command + risk badge | UI test |
-| Q8.3 | Audit `run_command` env injection / cwd | Tests |
-| Q8.4 | Secret patterns expansion (xai-, huggingface, etc.) | Redact tests |
-| Q8.5 | Session dir permissions 0700 | Test |
-| Q8.6 | Supply chain: pin actions SHAs; dependabot | Repo settings |
+| # | Work item | DoD | Status |
+|---|-----------|-----|--------|
+| Q8.1 | Default sandbox profile `workspace` for interactive (opt-out) | Doc + config default | ✅ `config.Default`, `sandbox.DefaultInteractive`, `docs/SANDBOX.md` |
+| Q8.2 | Permission prompt UX shows full command + risk badge | UI test | ✅ `internal/ui/permask` ClassifyRisk/FormatCommand |
+| Q8.3 | Audit `run_command` env injection / cwd | Tests | ✅ `scrubShellEnv`, pin `cmd.Dir`, null reject |
+| Q8.4 | Secret patterns expansion (xai-, huggingface, etc.) | Redact tests | ✅ `internal/redact` |
+| Q8.5 | Session dir permissions 0700 / files 0600 | Test | ✅ `DirModeSessions` / `FileModeSession` |
+| Q8.6 | Supply chain: pin actions SHAs; dependabot | Repo settings | ✅ ci/release SHAs + `.github/dependabot.yml` |
 
-**Exit:** Threat model doc + mitigations listed.
+**Exit:** Threat model doc + mitigations listed — ✅ `docs/THREAT_MODEL.md`
 
 ---
 
@@ -415,7 +415,7 @@ Week 4         Q4 sessions durability ✅
 Week 5         Q5 TUI polish + Batch A/F automated ✅
 Week 6         Q6 ACP harden ✅
 Week 7         Q7 performance ✅
-Week 8–9      Q8 security
+Week 8–9      Q8 security ✅
 Week 9–10     Q9 packaging
 Week 1–12     Q10 dogfood (parallel human track all along)
 Week 12       Claim review + version bump
