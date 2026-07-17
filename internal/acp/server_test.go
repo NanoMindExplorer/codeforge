@@ -1,7 +1,7 @@
 package acp
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"encoding/json"
 	"io"
@@ -151,8 +151,11 @@ func TestACPinitializeSessionNewPrompt(t *testing.T) {
 }
 
 func TestServeStdioScripted(t *testing.T) {
-	var out bytes.Buffer
-	pr, pw := io.Pipe()
+	// Dual pipes model real stdio. Do NOT poll a shared bytes.Buffer from the
+	// test while ServeStdio writes — bytes.Buffer is not concurrent-safe and
+	// triggers the race detector (Q0 CI).
+	inR, inW := io.Pipe()
+	outR, outW := io.Pipe()
 
 	srv := NewServer(Options{
 		Version: "test", WorkDir: t.TempDir(), AlwaysApprove: true,
@@ -160,33 +163,58 @@ func TestServeStdioScripted(t *testing.T) {
 	})
 	done := make(chan error, 1)
 	go func() {
-		done <- ServeStdio(srv, pr, &out)
+		err := ServeStdio(srv, inR, outW)
+		// Unblock any reader waiting on outR after the server exits.
+		_ = outW.Close()
+		done <- err
 	}()
+	t.Cleanup(func() {
+		_ = inW.Close()
+		_ = outR.Close()
+	})
 
-	b, _ := json.Marshal(map[string]any{
+	b, err := json.Marshal(map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
 		"params": map[string]any{"protocolVersion": 1},
 	})
-	if _, err := pw.Write(append(b, '\n')); err != nil {
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := inW.Write(append(b, '\n')); err != nil {
 		t.Fatal(err)
 	}
 
-	// read one response line from out
-	deadline := time.Now().Add(3 * time.Second)
+	// Read one NDJSON response line with a hard deadline (no shared buffer).
+	type lineResult struct {
+		line string
+		err  error
+	}
+	got := make(chan lineResult, 1)
+	go func() {
+		line, err := bufio.NewReader(outR).ReadString('\n')
+		got <- lineResult{line: line, err: err}
+	}()
+
 	var line string
-	for time.Now().Before(deadline) {
-		if i := bytes.IndexByte(out.Bytes(), '\n'); i >= 0 {
-			line = string(out.Bytes()[:i])
-			break
+	select {
+	case r := <-got:
+		if r.err != nil {
+			t.Fatalf("read initialize response: %v", r.err)
 		}
-		time.Sleep(5 * time.Millisecond)
+		line = r.line
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout waiting for initialize response")
 	}
 	if !strings.Contains(line, `"result"`) {
 		t.Fatalf("got %q", line)
 	}
-	_ = pw.Close()
+
+	_ = inW.Close()
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("ServeStdio: %v", err)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("stdio hang")
 	}
