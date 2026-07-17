@@ -24,6 +24,16 @@ import (
 	"github.com/codeforge/tui/internal/ui/settings"
 )
 
+// returnToPrompt restores prompt-focused insert mode after modals/overlays.
+// Missing this left users stuck in ModeNormal (scrollback) feeling "frozen".
+func (m *Model) returnToPrompt() {
+	m.mode = ModeInsert
+	m.focusPrompt = true
+	m.chat.FocusInput()
+	m.slash.Close()
+	m.ctrlCArmed = false
+}
+
 // handleKeyMsg owns the full keyboard mode machine (Q2.2).
 // Order: global chords → steal-Esc modal stack → slash menu → focus swap → prompt/scrollback.
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -168,6 +178,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.handlePromptEsc()
 		case "enter":
 			if m.chat.streaming {
+				m.toast = components.NewToast("Still streaming — Ctrl+C to cancel", "info", 2*time.Second)
 				return m, nil
 			}
 			// complete slash if menu open and partial
@@ -198,15 +209,20 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.retryAvailable = false
 			if c := m.chat.Submit(); c != nil {
 				m.recordTurnRewind(preview)
-				m.maybeAutoCompact()
+				if ac := m.maybeAutoCompact(); ac != nil {
+					cmds = append(cmds, ac)
+				}
 				cmds = append(cmds, c)
 				cmds = append(cmds, m.persistSessionCmd())
 			}
 			return m, tea.Batch(cmds...)
 		case "@":
 			m.slash.Close()
+			m.picker.Width = m.width
 			m.picker.Open()
 			m.mode = ModeFilePick
+			m.focusPrompt = false
+			m.chat.BlurInput()
 			return m, nil
 		case "pgup", "pgdown":
 			m.chat.mode = ModeNormal
@@ -221,8 +237,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Type into textarea then refresh slash menu
 		m.mode = ModeInsert
 		m.chat.mode = ModeInsert
-		// Don't let slash menu steal plain typing via up/down already handled
-		if msg.String() != "up" && msg.String() != "down" || !m.slash.Active {
+		// Don't let slash menu steal plain typing when up/down already handled for slash
+		skipChat := m.slash.Active && (msg.String() == "up" || msg.String() == "down")
+		if !skipChat {
 			nc, c := m.chat.Update(msg)
 			m.chat = nc.(ChatModel)
 			if c != nil {
@@ -344,7 +361,7 @@ func (m *Model) updateReview(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.finishReview()
 	case "esc":
 		m.review.Cancel()
-		m.mode = ModeNormal
+		m.returnToPrompt()
 		return m, nil
 	}
 	return m, nil
@@ -383,8 +400,8 @@ func (m *Model) finishReview() (tea.Model, tea.Cmd) {
 		m.toast = components.NewToast("All pending writes discarded", "warning", 3*time.Second)
 		m.chat.AddSystemMessage("Pending writes discarded.")
 	}
-	m.mode = ModeNormal
 	m.activePane = PaneChat
+	m.returnToPrompt()
 	return m, nil
 }
 
@@ -392,15 +409,16 @@ func (m *Model) updatePalette(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.palette.Cancel()
-		m.mode = ModeNormal
+		m.returnToPrompt()
 		return m, nil
 	case "enter":
 		m.palette.Confirm()
-		m.mode = ModeNormal
+		var cmd tea.Cmd
 		if m.palette.Selected != nil {
-			return m, m.handlePaletteItem(*m.palette.Selected)
+			cmd = m.handlePaletteItem(*m.palette.Selected)
 		}
-		return m, nil
+		m.returnToPrompt()
+		return m, cmd
 	case "up", "k":
 		m.palette.Move(-1)
 	case "down", "j":
@@ -578,6 +596,8 @@ func (m *Model) openPalette() {
 	items := buildPaletteItems(m)
 	m.palette.Open(items)
 	m.mode = ModePalette
+	m.focusPrompt = false
+	m.chat.BlurInput()
 }
 
 func (m *Model) handlePaletteItem(it palette.Item) tea.Cmd {
@@ -744,8 +764,7 @@ func (m Model) updateBlockView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
 		m.blockV.Close()
-		m.mode = ModeNormal
-		m.focusPrompt = false
+		m.returnToPrompt()
 		return m, nil
 	case "j", "down":
 		m.blockV.Scroll(1)

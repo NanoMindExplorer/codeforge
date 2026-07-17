@@ -341,7 +341,8 @@ func (m *Model) maxContextTokens() int {
 	return 128000
 }
 
-func (m *Model) maybeAutoCompact() {
+// maybeAutoCompact runs compact off the key path via tea.Cmd so Enter never freezes.
+func (m *Model) maybeAutoCompact() tea.Cmd {
 	maxCtx := m.maxContextTokens()
 	pct := 0.85
 	if m.cfg != nil && m.cfg.Session.AutoCompactPct > 0 {
@@ -352,18 +353,22 @@ func (m *Model) maybeAutoCompact() {
 		tok = session.EstimateTokens(m.chat.messages)
 	}
 	if !session.ShouldAutoCompact(tok, maxCtx, pct) {
-		return
+		return nil
 	}
 	if m.session == nil {
-		return
+		return nil
 	}
-	m.session.Messages = m.chat.messages
-	res, err := m.session.Compact(6, "auto-compact at context threshold")
-	if err != nil {
-		return
+	// Snapshot messages for background compact
+	msgs := append([]provider.Message(nil), m.chat.messages...)
+	sess := m.session
+	return func() tea.Msg {
+		sess.Messages = msgs
+		res, err := sess.Compact(6, "auto-compact at context threshold")
+		if err != nil {
+			return nil
+		}
+		return AutoCompactDoneMsg{Before: res.BeforeMsgs, After: res.AfterMsgs, Messages: sess.Messages}
 	}
-	m.chat.LoadMessages(m.session.Messages)
-	m.toast = components.NewToast(fmt.Sprintf("Auto-compact %d→%d msgs", res.BeforeMsgs, res.AfterMsgs), "info", 3*time.Second)
 }
 
 func (m *Model) recordTurnRewind(preview string) {

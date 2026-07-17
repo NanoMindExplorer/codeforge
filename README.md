@@ -328,10 +328,12 @@ codeforge --skip-wizard --no-motion
 | *(type)* | Auto-focus prompt |
 | `Tab` | Prompt ↔ scrollback |
 | `Esc` / **2× Esc** | Scrollback / clear prompt |
-| `@` | File picker |
+| `i` / `Space` | From scrollback → prompt |
+| `@` | File picker (cached list; Esc closes) |
 | `/` | Slash commands (+ hint strip) |
-| `Ctrl+K` | Palette |
-| `Shift+Tab` | Plan ↔ Act |
+| `Ctrl+K` | Palette (Esc closes → prompt) |
+| `Ctrl+C` | Clear draft → cancel stream → quit |
+| `Shift+Tab` | BUILD → DESIGN → YOLO |
 | `Ctrl+B` | Toggle side panels |
 | `/theme` | Live-preview picker · or `/theme tokyonight` / `auto` |
 | `/resume` | Session picker · `/new` `/fork` `/rewind` `/compact` |

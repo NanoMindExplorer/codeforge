@@ -14,12 +14,18 @@ import (
 	"github.com/sahilm/fuzzy"
 )
 
+// MaxListedFiles caps directory walks so @ never freezes the TUI on huge trees.
+const MaxListedFiles = 400
+
+// MaxWalkDepth limits recursion depth under workdir.
+const MaxWalkDepth = 8
+
 // Model is a compact file picker popup.
 type Model struct {
 	Active     bool
 	Workdir    string
 	Query      string
-	Files      []string
+	Files      []string // cached listing (refreshed on Open only)
 	Filtered   []string
 	Cursor     int
 	Width      int
@@ -29,6 +35,10 @@ type Model struct {
 	// Line range parsed from query trailing :N-M
 	RangeStart int
 	RangeEnd   int
+
+	// listOnce avoids re-walking the disk on every keystroke (freeze fix).
+	listed     bool
+	listHidden bool
 }
 
 func New(workdir string) Model {
@@ -47,6 +57,8 @@ func (m *Model) OpenWithQuery(q string) {
 	m.Selected = ""
 	m.Cursor = 0
 	m.RangeStart, m.RangeEnd = 0, 0
+	// Force one disk scan for this open session
+	m.listed = false
 	m.SetQuery(q)
 }
 
@@ -76,12 +88,12 @@ func (m *Model) Backspace() {
 
 func (m *Model) refilter() {
 	q := m.Query
-	m.ShowHidden = false
+	showHidden := false
 	m.RangeStart, m.RangeEnd = 0, 0
 
 	// hidden: leading !
 	if strings.HasPrefix(q, "!") {
-		m.ShowHidden = true
+		showHidden = true
 		q = q[1:]
 	}
 	// line range: path:10-50 or path:10
@@ -94,10 +106,19 @@ func (m *Model) refilter() {
 		}
 	}
 
-	m.Files = listFiles(m.Workdir, m.ShowHidden)
+	// Disk walk only when first open or when hidden toggle flips — not every key.
+	if !m.listed || m.listHidden != showHidden {
+		m.Files = listFiles(m.Workdir, showHidden)
+		m.listed = true
+		m.listHidden = showHidden
+	}
+	m.ShowHidden = showHidden
+
 	if strings.TrimSpace(pathQ) == "" {
 		m.Filtered = m.Files
-		m.Cursor = 0
+		if m.Cursor >= len(m.Filtered) {
+			m.Cursor = 0
+		}
 		return
 	}
 	matches := fuzzy.Find(pathQ, m.Files)
@@ -224,6 +245,7 @@ func (m Model) View() string {
 }
 
 // listFiles walks project respecting gitignore (basic) unless showHidden.
+// Bounded by MaxListedFiles / MaxWalkDepth so the TUI never freezes.
 func listFiles(workdir string, showHidden bool) []string {
 	ignore := loadGitignore(workdir)
 	var out []string
@@ -238,9 +260,17 @@ func listFiles(workdir string, showHidden bool) []string {
 		if rel == "." {
 			return nil
 		}
+		// depth limit
+		depth := strings.Count(filepath.ToSlash(rel), "/")
+		if d.IsDir() && depth >= MaxWalkDepth {
+			return filepath.SkipDir
+		}
 		name := d.Name()
 		if d.IsDir() {
-			if name == ".git" || name == "node_modules" || name == "vendor" || name == "dist" || name == "build" {
+			if name == ".git" || name == "node_modules" || name == "vendor" ||
+				name == "dist" || name == "build" || name == "target" ||
+				name == ".cache" || name == "__pycache__" || name == ".next" ||
+				name == "Pods" || name == ".idea" || name == ".vscode" {
 				return filepath.SkipDir
 			}
 			if !showHidden && strings.HasPrefix(name, ".") && name != ".github" {
@@ -258,7 +288,7 @@ func listFiles(workdir string, showHidden bool) []string {
 			return nil
 		}
 		out = append(out, rel)
-		if len(out) >= 800 {
+		if len(out) >= MaxListedFiles {
 			return filepath.SkipAll
 		}
 		return nil
@@ -291,9 +321,7 @@ func ignoredBy(pats []string, rel string, isDir bool) bool {
 		if p == "" {
 			continue
 		}
-		neg := false
 		if strings.HasPrefix(p, "!") {
-			neg = true
 			p = p[1:]
 		}
 		p = strings.TrimSuffix(p, "/")
@@ -304,61 +332,54 @@ func ignoredBy(pats []string, rel string, isDir bool) bool {
 		if ok, _ := filepath.Match(p, rel); ok {
 			match = true
 		}
-		if strings.HasSuffix(p, "/**") {
-			pref := strings.TrimSuffix(p, "/**")
-			if rel == pref || strings.HasPrefix(rel, pref+"/") {
+		if strings.HasSuffix(p, "/**") || strings.HasSuffix(p, "/*") {
+			pref := strings.TrimSuffix(strings.TrimSuffix(p, "*"), "/")
+			if strings.HasPrefix(rel, pref) {
 				match = true
 			}
 		}
-		if strings.Contains(rel, "/"+p+"/") || strings.HasPrefix(rel, p+"/") {
-			match = true
-		}
-		if match && !neg {
+		if match {
 			return true
 		}
+		_ = isDir
 	}
-	_ = isDir
 	return false
 }
 
-// ReadFileContent loads file for @mention (optional line range).
-// selected may be "path" or "path:10-50".
-func ReadFileContent(workdir, selected string, maxBytes int) (string, error) {
-	if maxBytes <= 0 {
-		maxBytes = 32_000
-	}
-	path := selected
+// ReadFileContent loads a file (optionally path:start-end) capped at maxBytes.
+func ReadFileContent(workdir, sel string, maxBytes int) (string, error) {
+	path := sel
 	start, end := 0, 0
-	if i := strings.LastIndex(selected, ":"); i >= 0 {
-		tail := selected[i+1:]
+	if i := strings.LastIndex(sel, ":"); i >= 0 {
+		tail := sel[i+1:]
 		if isLineRange(tail) {
-			path = selected[:i]
+			path = sel[:i]
 			start, end = parseLineRange(tail)
 		}
 	}
-	full := filepath.Join(workdir, path)
-	data, err := os.ReadFile(full)
+	abs := path
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(workdir, path)
+	}
+	data, err := os.ReadFile(abs)
 	if err != nil {
 		return "", err
 	}
-	content := string(data)
-	if start > 0 {
-		lines := strings.Split(content, "\n")
-		if start > len(lines) {
-			start = len(lines)
-		}
-		if end <= 0 || end > len(lines) {
-			end = len(lines)
-		}
-		if start < 1 {
-			start = 1
-		}
-		slice := lines[start-1 : end]
-		content = strings.Join(slice, "\n")
-		content = "// " + path + " lines " + strconv.Itoa(start) + "-" + strconv.Itoa(end) + "\n" + content
+	if maxBytes > 0 && len(data) > maxBytes {
+		data = data[:maxBytes]
 	}
-	if len(content) > maxBytes {
-		content = content[:maxBytes] + "\n… (truncated)"
+	if start <= 0 {
+		return string(data), nil
 	}
-	return content, nil
+	lines := strings.Split(string(data), "\n")
+	if start > len(lines) {
+		start = len(lines)
+	}
+	if end <= 0 || end > len(lines) {
+		end = len(lines)
+	}
+	if start < 1 {
+		start = 1
+	}
+	return strings.Join(lines[start-1:end], "\n"), nil
 }

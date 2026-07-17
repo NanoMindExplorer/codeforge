@@ -420,6 +420,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toast = components.NewToast(fmt.Sprintf("Index: %d files", msg.Files), "info", 2*time.Second)
 		}
 
+	case AutoCompactDoneMsg:
+		if msg.Messages != nil {
+			m.chat.LoadMessages(msg.Messages)
+			if m.session != nil {
+				m.session.Messages = msg.Messages
+			}
+			m.toast = components.NewToast(fmt.Sprintf("Auto-compact %d→%d msgs", msg.Before, msg.After), "info", 3*time.Second)
+		}
+
 	case GitHubStatusMsg:
 		if msg.OK {
 			m.status.GitHubUser = msg.User

@@ -333,6 +333,13 @@ type IndexReadyMsg struct {
 	Err     error
 }
 
+// AutoCompactDoneMsg applies compact results after async compact (freeze fix).
+type AutoCompactDoneMsg struct {
+	Before   int
+	After    int
+	Messages []provider.Message // needs provider import — already in stream.go
+}
+
 // GitHubStatusMsg carries async auth discovery results.
 type GitHubStatusMsg struct {
 	User string

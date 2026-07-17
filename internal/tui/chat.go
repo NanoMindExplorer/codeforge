@@ -488,14 +488,18 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return c, tea.Batch(cmds...)
 }
 
-// AddSystemMessage uses typewriter when motion enabled.
+// AddSystemMessage uses typewriter when motion enabled for short multi-line text.
+// Large blocks (status cards, doctor output) are added immediately so the TUI
+// never looks frozen waiting for typewriter ticks.
 func (c *ChatModel) AddSystemMessage(text string) {
-	if theme.MotionEnabled() && strings.Count(text, "\n") > 2 {
-		c.typewriterQ = strings.Split(text, "\n")
+	lines := strings.Split(text, "\n")
+	// Typewriter only for small multi-line messages (≤8 lines); larger = instant.
+	if theme.MotionEnabled() && len(lines) > 2 && len(lines) <= 8 {
+		c.typewriterQ = append(c.typewriterQ, lines...)
 		c.typewriterOn = true
 		return
 	}
-	for _, line := range strings.Split(text, "\n") {
+	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
