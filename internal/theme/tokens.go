@@ -375,7 +375,7 @@ func SetByName(name string) bool {
 // ThemeNames lists selectable themes (for help text).
 func ThemeNames() []string {
 	return []string{"catppuccin", "tokyonight", "groknight", "grokday", "rosepine", "oscura", "aurora", "auto"}
-	
+
 }
 
 // ThemeNamesForPicker returns themes suitable for the current terminal color level.
@@ -703,7 +703,7 @@ func GlamourStyleName() string {
 // CatppuccinMocha is the modern default theme.
 func CatppuccinMocha() Tokens {
 	return Tokens{
-		Name: "catppuccin",
+		Name:   "catppuccin",
 		BgBase: "#11111B", BgSurface: "#181825", BgElevated: "#1E1E2E", BgOverlay: "#313244",
 		BgLight:   "#181825",
 		BorderDim: "#45475A", BorderActive: "#B4BEFE", BorderGlow: "#CBA6F7", PromptBorder: "#585B70",
