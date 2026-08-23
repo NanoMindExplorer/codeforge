@@ -5,6 +5,23 @@ import (
 )
 
 func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+
+	if m.mode == ModeWelcome {
+		if msg.Type == tea.MouseLeft {
+			startY := m.height/2 + 1
+			if msg.Y >= startY && msg.Y <= startY+3 {
+				m.welcomeCursor = msg.Y - startY
+				return m.updateWelcome(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Alt: false}))
+			}
+		}
+		if msg.Type == tea.MouseWheelUp && m.welcomeCursor > 0 {
+			m.welcomeCursor--
+		} else if msg.Type == tea.MouseWheelDown && m.welcomeCursor < 3 {
+			m.welcomeCursor++
+		}
+		return m, nil
+	}
+
 	var cmds []tea.Cmd
 
 	var sideW, chatW int
