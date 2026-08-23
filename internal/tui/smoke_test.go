@@ -67,23 +67,10 @@ func TestSmokeRender(t *testing.T) {
 	if m.sessionMode != tool.SessionBuild {
 		t.Fatalf("expected BUILD, got %v", m.sessionMode.Label())
 	}
-	// Theme picker opens (Phase 3)
-	_ = m.executeSlashCommand("/theme")
-	if m.mode != ModeThemePick {
-		t.Fatalf("expected ModeThemePick after /theme, got %v", m.mode)
-	}
-	// Set theme by name
-	m.mode = ModeInsert
-	m.themes.Close()
-	_ = m.executeSlashCommand("/theme tokyonight")
-	if theme.DisplayName() != "tokyonight" {
-		t.Fatalf("theme set: %s", theme.DisplayName())
-	}
-	// Vim mode toggle
-	before := m.vimMode
-	_ = m.executeSlashCommand("/vim-mode")
-	if m.vimMode == before {
-		t.Fatal("vim mode should toggle")
+	// Settings opens (Phase 3)
+	_ = m.executeSlashCommand("/settings")
+	if m.mode != ModeSettings {
+		t.Fatalf("expected ModeSettings after /settings, got %v", m.mode)
 	}
 }
 
@@ -97,8 +84,8 @@ func TestThemePickerPreviewAndCancel(t *testing.T) {
 	m.focusPrompt = true
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m = asModel(nm)
-	_ = m.executeSlashCommand("/theme")
-	m = asModel(m) // mode already set
+	m.mode = ModeThemePick
+	m.themes.Open()
 	if m.mode != ModeThemePick {
 		t.Fatal("picker not open")
 	}
@@ -167,22 +154,6 @@ func TestSlashMenuActivates(t *testing.T) {
 	}
 	if m.slash.Selected() == "" && len(m.slash.Filtered) == 0 {
 		t.Fatal("no filter")
-	}
-}
-
-func TestModelSwitchSlash(t *testing.T) {
-	theme.SetMotion(false)
-	reg := provider.NewRegistry()
-	_ = reg.Register(provider.NewGeminiProvider("k", "gemini-2.5-flash"))
-	tools := tool.NewRegistry(t.TempDir())
-	m := New(config.Default(), reg, tools, nil, t.TempDir())
-	m.mode = ModeInsert
-	m.focusPrompt = true
-	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	_ = m.executeSlashCommand("/model gemini-2.5-pro")
-	cur, _ := reg.Current()
-	if cur.Model() != "gemini-2.5-pro" {
-		t.Fatalf("model not switched: %s", cur.Model())
 	}
 }
 

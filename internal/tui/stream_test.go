@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -156,22 +155,5 @@ func TestAccTokens(t *testing.T) {
 	}
 	if time.Since(m.lastTokenAt) > time.Second {
 		t.Fatal("lastTokenAt not set")
-	}
-}
-
-func TestIsImmediateSlashKnown(t *testing.T) {
-	// colocated with stream suite as slash helper used by keys
-	for _, s := range []string{"/help", "/clear", "/cost", "/quit"} {
-		if !isImmediateSlash(s) {
-			t.Fatal(s)
-		}
-	}
-	// agent prompts should NOT auto-run on menu enter alone
-	for _, s := range []string{"/act foo", "/run ls"} {
-		// isImmediateSlash checks command name only via trimmed path - /act is not in list
-		cmd := strings.Fields(s)[0]
-		if isImmediateSlash(cmd) {
-			t.Fatal("should not immediate:", cmd)
-		}
 	}
 }

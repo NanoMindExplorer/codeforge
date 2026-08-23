@@ -144,14 +144,3 @@ func TestPromptEscClearsOrBlurs(t *testing.T) {
 	_ = time.Now() // keep time import stable if needed
 }
 
-func TestIsImmediateSlash(t *testing.T) {
-	if !isImmediateSlash("/help") {
-		t.Fatal("help immediate")
-	}
-	if !isImmediateSlash("/status") {
-		t.Fatal("status immediate")
-	}
-	if isImmediateSlash("/act") {
-		t.Fatal("act needs args / agent run — not always immediate")
-	}
-}
