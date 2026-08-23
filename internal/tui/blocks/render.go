@@ -249,12 +249,16 @@ func (s *Store) renderBlockLines(i int) []string {
 	if i < 0 || i >= len(s.blocks) {
 		return nil
 	}
-	b := s.blocks[i]
+	b := &s.blocks[i]
 	t := theme.Current()
 	selected := s.showSelection && i == s.selected
 	innerW := s.width - 4 // accent + scrollbar + pad
 	if innerW < 12 {
 		innerW = 12
+	}
+
+	if b.CachedVisual != nil && b.CachedVisualWidth == s.width && b.CachedVisualSel == selected && !b.Streaming && b.CachedBody == b.Body {
+		return b.CachedVisual
 	}
 
 	accent := t.AccentSystem
@@ -272,11 +276,11 @@ func (s *Store) renderBlockLines(i int) []string {
 	}
 
 	var lines []string
-	header := s.blockHeader(b)
+	header := s.blockHeader(*b)
 	if selected {
 		header = lipgloss.NewStyle().Background(t.BgElevated).Foreground(t.AccentFocus).Render(header)
 	} else {
-		header = lipgloss.NewStyle().Foreground(headerColor(b, t)).Render(header)
+		header = lipgloss.NewStyle().Foreground(headerColor(*b, t)).Render(header)
 	}
 	lines = append(lines, pfx+header)
 
@@ -292,6 +296,12 @@ func (s *Store) renderBlockLines(i int) []string {
 			}
 		}
 		lines = append(lines, "")
+
+		if !b.Streaming {
+			b.CachedVisual = lines
+			b.CachedVisualWidth = s.width
+			b.CachedVisualSel = selected
+		}
 		return lines
 	}
 
@@ -304,6 +314,13 @@ func (s *Store) renderBlockLines(i int) []string {
 		lines = append(lines, pfx+ln)
 	}
 	lines = append(lines, "") // gap after block
+
+	if !b.Streaming {
+		b.CachedVisual = lines
+		b.CachedVisualWidth = s.width
+		b.CachedVisualSel = selected
+	}
+
 	return lines
 }
 

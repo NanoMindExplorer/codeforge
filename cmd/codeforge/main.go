@@ -158,12 +158,6 @@ func runTUI(args []string) {
 	}
 	if skipWizard {
 		_ = onboarding.MarkSkipped()
-	} else if onboarding.NeedsWizard(false) {
-		_ = onboarding.RunWizard(onboarding.WizardOptions{Config: cfg})
-		// reload config after wizard may have written default_provider
-		if c2, err := config.Load(); err == nil && c2 != nil {
-			cfg = c2
-		}
 	}
 
 	// Q7.1: skip sync index on TUI cold start (async build after UI is up).

@@ -146,31 +146,36 @@ func (m *OnboardModel) Update(msg tea.Msg) (tea.Cmd, bool, string, string) {
 
 func (m *OnboardModel) View() string {
 	t := theme.Current()
-
-	titleStyle := lipgloss.NewStyle().
-		Foreground(t.AccentUser).
-		Bold(true).
-		MarginBottom(2).
-		Align(lipgloss.Center).
-		Width(m.width)
-
 	var body strings.Builder
 
-	if m.step == StepSelectProvider {
-		body.WriteString(titleStyle.Render("Welcome to CodeForge! Let's get you set up."))
-		body.WriteString("\n\n")
+	asciiArt := " ____          _      _____\n" +
+		"    / ___|___   __| | ___|  ___|__  _ __ __ _  ___\n" +
+		"   | |   / _ \\ / _` |/ _ \\ |_ / _ \\| '__/ _` |/ _ \\\n" +
+		"   | |__| (_) | (_| |  __/  _| (_) | | | (_| |  __/\n" +
+		"    \\____\\___/ \\__,_|\\___|_|  \\___/|_|  \\__, |\\___|\n" +
+		"                                        |___/"
 
-		desc := lipgloss.NewStyle().Foreground(t.TextMuted).Align(lipgloss.Center).Width(m.width)
-		body.WriteString(desc.Render("Please select an AI provider to continue:"))
+	asciiStyle := lipgloss.NewStyle().Foreground(t.AccentUser).Bold(true).Align(lipgloss.Center).Width(m.width)
+	body.WriteString(asciiStyle.Render(asciiArt))
+	body.WriteString("\n\n")
+
+	subtitleStyle := lipgloss.NewStyle().Foreground(t.TextMuted).Align(lipgloss.Center).Width(m.width)
+	body.WriteString(subtitleStyle.Render("By NanoMindExplorer\n\nFirst-run setup · multi-provider"))
+	body.WriteString("\n\n")
+
+	descStyle := lipgloss.NewStyle().Foreground(t.TextPrimary).Align(lipgloss.Center).Width(m.width)
+
+	if m.step == StepSelectProvider {
+		body.WriteString(descStyle.Render("You need one API key. Several providers can coexist;\nonly ONE is active at a time.\nPriority: grok → gemini → claude → openai\n\n(Use Up/Down arrows to select, Enter to confirm, Mouse clicks supported)"))
 		body.WriteString("\n\n")
 
 		menuStyle := lipgloss.NewStyle().Align(lipgloss.Center).Width(m.width)
 		var menu strings.Builder
 		for i, p := range m.providers {
-			cursor := "  "
+			cursor := "   ○ "
 			style := lipgloss.NewStyle().Foreground(t.TextMuted)
 			if i == m.cursor {
-				cursor = "❯ "
+				cursor = "   ● "
 				style = lipgloss.NewStyle().Foreground(t.AccentUser).Bold(true)
 			}
 			menu.WriteString(style.Render(cursor + p))
@@ -179,10 +184,8 @@ func (m *OnboardModel) View() string {
 		body.WriteString(menuStyle.Render(menu.String()))
 
 	} else {
-		body.WriteString(titleStyle.Render("Enter API Key for " + strings.ToUpper(m.selectedProvider)))
+		body.WriteString(descStyle.Render("Enter API Key for " + strings.ToUpper(m.selectedProvider)))
 		body.WriteString("\n\n")
-
-		desc := lipgloss.NewStyle().Foreground(t.TextMuted).Align(lipgloss.Center).Width(m.width)
 
 		var helpText string
 		switch m.selectedProvider {
@@ -196,14 +199,14 @@ func (m *OnboardModel) View() string {
 			helpText = "Get your API key at: https://platform.openai.com/api-keys"
 		}
 
-		body.WriteString(desc.Render(helpText))
+		body.WriteString(subtitleStyle.Render(helpText))
 		body.WriteString("\n\n")
 
 		inputStyle := lipgloss.NewStyle().Align(lipgloss.Center).Width(m.width)
 		body.WriteString(inputStyle.Render(m.input.View()))
 
 		body.WriteString("\n\n")
-		body.WriteString(desc.Render("(Press Enter to save, Esc to go back)"))
+		body.WriteString(subtitleStyle.Render("(Press Enter to save, Esc to go back)"))
 	}
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, body.String())
