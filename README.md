@@ -1,6 +1,6 @@
 # CodeForge 🚀
 
-![Version](https://img.shields.io/badge/version-v1.9.4-blue)
+![Version](https://img.shields.io/badge/version-v1.9.3-blue)
 ![License](https://img.shields.io/badge/license-Apache%202.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20|%20macOS%20|%20Termux-lightgrey)
 
