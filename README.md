@@ -1,6 +1,6 @@
 # CodeForge 🚀
 
-![Version](https://img.shields.io/badge/version-v1.9.3-blue)
+![Version](https://img.shields.io/badge/version-v1.9.4-blue)
 ![License](https://img.shields.io/badge/license-Apache%202.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20|%20macOS%20|%20Termux-lightgrey)
 
@@ -23,20 +23,18 @@ Melalui pembaruan UI/UX arsitektur terbaru, CodeForge kini sepenuhnya dikendalik
 
 ---
 
-## 💻 Instalasi
+## 💻 Instalasi (One-Liner)
 
-Kami sangat merekomendasikan kompilasi langsung dari sumber (`source`) agar Anda mendapatkan **fitur-fitur mutakhir secara *real-time*** (seperti *Multiplayer Sessions*, *Vector RAG*, *Mouse Support*, dan Arsitektur Agen Terbaru):
+Pasang rilis stabil CodeForge ke sistem Anda dalam sekejap menggunakan satu baris perintah berikut. Ini akan mengunduh versi biner (binary) terbaru tanpa memerlukan kompilasi:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh | CODEFORGE_VERSION=source sh
-```
-
-*(Catatan: Dibutuhkan Go 1.25+ di sistem Anda)*
-
-### Instalasi Rilis Stabil (*Pre-compiled Binary*)
-Jika Anda hanya menginginkan *binary* tanpa proses kompilasi:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh | sh
+```
+
+### Alternatif Instalasi dari Sumber (*Source*)
+Jika Anda ingin berpartisipasi mencoba fitur eksperimental yang belum dirilis secara stabil, Anda dapat memaksa instalasi untuk mengompilasi dari *branch* utama secara *real-time* (membutuhkan Go 1.25+):
+```bash
+curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh | CODEFORGE_VERSION=source sh
 ```
 
 ### Termux (Android)
