@@ -401,6 +401,17 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.agentFull = ""
 		}
 
+	case tea.MouseMsg:
+		if msg.Type == tea.MouseWheelUp {
+			c.store.LineUp()
+			c.store.LineUp()
+			c.store.LineUp()
+		} else if msg.Type == tea.MouseWheelDown {
+			c.store.LineDown()
+			c.store.LineDown()
+			c.store.LineDown()
+		}
+
 	case tea.KeyMsg:
 		if c.mode == ModeInsert && !c.streaming {
 			switch msg.String() {
@@ -669,3 +680,5 @@ INSTRUCTIONS:
 - After edits run diagnostics
 - DESIGN: never edit project source until plan approved
 - Reply in the user's language; be concise`
+
+func (c *ChatModel) SetMode(m Mode) { c.mode = m }

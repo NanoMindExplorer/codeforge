@@ -391,6 +391,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.review.Width = msg.Width
 		m.review.Height = msg.Height - 2
 
+	case tea.MouseMsg:
+		return m.handleMouseMsg(msg)
+
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 

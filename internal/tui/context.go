@@ -27,6 +27,7 @@ type ContextModel struct {
 	tools   []string
 	filter  string
 	cursor  int
+	offset  int
 }
 
 func NewContextModel(workdir string) ContextModel {
@@ -119,6 +120,16 @@ func (c *ContextModel) AddFile(path string) {
 
 func (c ContextModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.MouseMsg:
+		if msg.Type == tea.MouseWheelUp {
+			if c.offset > 0 {
+				c.offset--
+			}
+		} else if msg.Type == tea.MouseWheelDown {
+			if c.offset < len(c.files)-1 {
+				c.offset++
+			}
+		}
 	case ContextUpdateMsg:
 		if len(msg.Files) > 0 {
 			for _, f := range msg.Files {
@@ -149,7 +160,10 @@ func (c ContextModel) View() string {
 	if maxFiles < 3 {
 		maxFiles = 3
 	}
-	for _, f := range c.files {
+	for i, f := range c.files {
+		if i < c.offset {
+			continue
+		}
 		if shown >= maxFiles {
 			sb.WriteString(lipgloss.NewStyle().Foreground(t.TextMuted).Render("  …") + "\n")
 			break
