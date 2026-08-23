@@ -24,10 +24,15 @@ case "$os" in
   *) echo "unsupported os: $os"; exit 1 ;;
 esac
 
-if [ "$VERSION" = "latest" ]; then
-  VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
+if [ "$VERSION" = "source" ] || [ "$VERSION" = "latest" ]; then
+  if [ "$VERSION" = "latest" ]; then
+    VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
+  else
+    VERSION="" # Force source build
+  fi
+  
   if [ -z "$VERSION" ]; then
-    echo "No GitHub release found — building from source..."
+    echo "Building CodeForge from the absolute latest source..."
     if ! command -v go >/dev/null 2>&1; then
       echo "Go is required to build from source. Install Go or wait for a release."
       exit 1

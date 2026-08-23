@@ -22,8 +22,16 @@ CodeForge adalah antarmuka terminal (TUI) berbasis AI mutakhir untuk perekayasa 
 
 ## 💻 Instalasi
 
-Anda dapat memasang CodeForge menggunakan skrip *one-liner* yang akan otomatis mendeteksi OS Anda:
+Anda dapat memasang CodeForge menggunakan skrip *one-liner* berikut. Kami merekomendasikan kompilasi langsung dari sumber utama (`main branch`) agar Anda mendapatkan **semua fitur mutakhir terbaru** (seperti *Multiplayer Sessions*, *Vector RAG*, dan *Mouse Support*):
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh | CODEFORGE_VERSION=source sh
+```
+
+*(Catatan: Anda membutuhkan Go 1.25+ yang terinstal di sistem Anda untuk kompilasi dari sumber)*
+
+### Instalasi Rilis Stabil
+Jika Anda hanya ingin mengunduh *binary* stabil tanpa kompilasi (namun mungkin tertinggal beberapa pembaruan):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh | sh
 ```
