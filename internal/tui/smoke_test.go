@@ -142,7 +142,6 @@ func asModel(nm tea.Model) Model {
 	default:
 		panic("unexpected model type")
 	}
-	return Model{}
 }
 
 func TestSlashMenuActivates(t *testing.T) {
