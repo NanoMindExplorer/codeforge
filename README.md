@@ -1,51 +1,46 @@
-# CodeForge
+# CodeForge 🚀
 
-![Version](https://img.shields.io/badge/version-v1.9.3-blue)
-
+![Version](https://img.shields.io/badge/version-v1.9.4-blue)
+![License](https://img.shields.io/badge/license-Apache%202.0-green)
+![Platform](https://img.shields.io/badge/platform-Linux%20|%20macOS%20|%20Termux-lightgrey)
 
 > *Terminal AI coding companion — open, modular, vendor-neutral — and it feels like the future.*
 
-CodeForge adalah antarmuka terminal (TUI) berbasis AI mutakhir untuk perekayasa perangkat lunak. Dirancang dengan filosofi IDE modern dan terintegrasi langsung dengan GitHub, Git, serta penyedia LLM pilihan Anda (Gemini, Grok, Claude, OpenAI, Ollama).
+CodeForge adalah antarmuka terminal (TUI) berbasis kecerdasan buatan (*Agentic AI*) mutakhir untuk perekayasa perangkat lunak. Dirancang dengan filosofi IDE modern dan terintegrasi langsung dengan GitHub, Git, serta penyedia LLM pilihan Anda (Gemini, Grok, Claude, OpenAI, Ollama). 
+
+Melalui pembaruan UI/UX arsitektur terbaru, CodeForge kini sepenuhnya dikendalikan oleh **Natural Language Intent**. Tidak perlu menghafal puluhan perintah yang membingungkan. Cukup tuliskan apa yang Anda butuhkan, dan agen AI kami akan membaca, merencanakan, dan menulis kode untuk Anda.
 
 ![CodeForge Demo](./docs/assets/demo.png) *(Ilustrasi UI - Anda dapat mencoba langsung di terminal Anda)*
 
 ---
 
-## 🚀 Fitur Utama
+## ✨ Arsitektur UI/UX & Workflow Mutakhir (Terbaru!)
 
-- **Zero-Friction Workflow:** `Ctrl+K` command palette, panel sidebar, status bar cerdas, dan omnibox.
-- **Agen Terisolasi (Sandboxed):** Eksekusi *tool* CLI dan modifikasi kode dengan persetujuan manusia.
-- **Integrasi GitHub Native:** Tarik PR, pantau CI/Action *run*, dan buat *commit* langsung dari TUI.
-- **Arsitektur Modular:** Mendukung ekstensi eksternal via MCP (Model Context Protocol).
+1. **Zero-Friction Onboarding (UI Interaktif):** Saat pertama kali dijalankan, Anda tidak akan disambut oleh layar kosong atau kewajiban mengetik instruksi CLI yang rumit. TUI CodeForge akan menampilkan menu navigasi visual (mendukung *mouse* & *keyboard*) untuk memilih API provider (Gemini, Grok, Ollama, dll) dengan aman.
+2. **"The Golden Dozen" Slash Commands:** Mengurangi beban memori Anda (*Cognitive Overload*). Dari yang sebelumnya memiliki 50+ perintah (`/read`, `/grep`, `/theme`), kini sistem disederhanakan menjadi perintah tingkat orkestrasi seperti `/act`, `/plan`, `/gh`, dan `/session`. 
+3. **Intent-Driven Workflow:** Apakah Anda ingin membaca file, mencari letak *bug*, atau mengeksekusi *script*? Cukup ucapkan secara natural di chat atau gunakan sebutan **`@nama_file`**. Agen otonom akan memanggil *tools* miliknya secara otomatis.
+4. **Command Palette (Ctrl+K):** Seluruh manajemen kosmetik (Tema, Mode Vim, tata letak) kini tersentralisasi pada Command Palette bergaya VS Code.
 
 ---
 
 ## 💻 Instalasi
 
-Anda dapat memasang CodeForge menggunakan skrip *one-liner* berikut. Kami merekomendasikan kompilasi langsung dari sumber utama (`main branch`) agar Anda mendapatkan **semua fitur mutakhir terbaru** (seperti *Multiplayer Sessions*, *Vector RAG*, dan *Mouse Support*):
+Kami sangat merekomendasikan kompilasi langsung dari sumber (`source`) agar Anda mendapatkan **fitur-fitur mutakhir secara *real-time*** (seperti *Multiplayer Sessions*, *Vector RAG*, *Mouse Support*, dan Arsitektur Agen Terbaru):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh | CODEFORGE_VERSION=source sh
 ```
 
-*(Catatan: Anda membutuhkan Go 1.25+ yang terinstal di sistem Anda untuk kompilasi dari sumber)*
+*(Catatan: Dibutuhkan Go 1.25+ di sistem Anda)*
 
-### Instalasi Rilis Stabil
-Jika Anda hanya ingin mengunduh *binary* stabil tanpa kompilasi (namun mungkin tertinggal beberapa pembaruan):
+### Instalasi Rilis Stabil (*Pre-compiled Binary*)
+Jika Anda hanya menginginkan *binary* tanpa proses kompilasi:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NanoMindExplorer/codeforge/main/install.sh | sh
 ```
 
-### Alternatif Instalasi (Dari Sumber)
-Pastikan Go 1.25+ terinstal:
-```bash
-git clone https://github.com/NanoMindExplorer/codeforge.git
-cd codeforge
-make build
-sudo mv codeforge /usr/local/bin/
-```
-
 ### Termux (Android)
+CodeForge bekerja dengan sangat luar biasa dan optimal di atas OS Android (Termux):
 ```bash
 pkg install -y golang git
 git clone https://github.com/NanoMindExplorer/codeforge.git
@@ -53,58 +48,52 @@ cd codeforge
 bash contrib/termux/build.sh
 ```
 
-Verifikasi instalasi berhasil:
-```bash
-codeforge version
-```
-
 ---
 
-## 🔑 Konfigurasi API & GitHub
+## 🔑 Autentikasi Mudah
 
-Agar CodeForge dapat berfungsi, Anda membutuhkan **salah satu** API Key LLM.
+CodeForge dirancang untuk independen secara vendor (*Vendor-Neutral*). Anda dapat menggunakan model AI pilihan Anda.
+Saat Anda menjalankan perintah `codeforge` di terminal untuk pertama kalinya, antarmuka *Setup UI* akan membimbing Anda.
 
-**1. Set API Key (Contoh menggunakan Gemini yang memiliki Free Tier):**
+Namun, jika Anda lebih suka menggunakan konfigurasi Environment Variable klasik:
 ```bash
+# Contoh untuk Gemini (Tersedia Free-Tier)
 export GEMINI_API_KEY="AIzaSy..."
-```
-*(Opsional: `XAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, atau biarkan kosong jika memakai `ollama` lokal).*
 
-**2. Autentikasi GitHub (Opsional tapi sangat direkomendasikan):**
-```bash
-gh auth login
+# Contoh untuk Grok (xAI)
+export XAI_API_KEY="xai-..."
 ```
+
+*(Jangan lupa lakukan `gh auth login` agar agen CodeForge Anda bisa membuat Pull Request dan Issue di GitHub).*
 
 ---
 
 ## 🎯 Cara Penggunaan (Quick Start)
 
-Masuk ke folder proyek/repositori Git Anda dan jalankan CodeForge:
+Masuk ke folder repositori proyek Anda dan panggil CodeForge:
 
 ```bash
 cd /path/to/my-project
 codeforge
 ```
 
-### Siklus Kerja Harian
-Di dalam antarmuka CodeForge, Anda cukup **mengetikkan apa yang Anda inginkan** di *prompt*. Beberapa perintah (*slash commands*) penting yang akan sering Anda pakai:
-
-- `/act [tugas]` : Menginstruksikan AI untuk membaca *codebase*, menyusun rencana perbaikan, dan langsung mengeksekusi perubahan file. 
-  - *Contoh: `/act perbaiki fungsi register agar menggunakan regex validasi email.`*
-- `@` : Tekan '@' untuk memanggil jendela *file picker* interaktif (menyisipkan file ke memori AI).
-- `/gh pr` : Mengelola / membuat Pull Request ke GitHub.
-- `Ctrl+K` : Membuka *Command Palette* bergaya VS Code untuk fitur tingkat lanjut.
-- `/mode [build|design|yolo]` : Beralih dari mode eksekusi aman (*build* - menunda file sampai Anda me-review) ke mode bebas hambatan (*yolo*).
+### Navigasi Utama Harian
+- **Ketik Natural:** *"Tolong periksa mengapa autentikasi Oauth2 saya gagal, berikan perbaikannya."*
+- **Sebut Konteks:** Tekan `@` untuk menyisipkan direktori, file, atau tautan ke dalam ingatan AI.
+- **`/act` (Action Mode):** Memerintahkan agen untuk langsung memodifikasi *codebase* secara otonom.
+- **`/plan` (Architect Mode):** Memerintahkan agen untuk melakukan riset mendalam, membaca file di latar belakang, dan memberikan cetak biru (*blueprint*) sebelum memodifikasi kode.
+- **`Ctrl+K` :** Akses kilat ke *Command Palette* (Ganti Tema, Preferensi, dll).
+- **`/git` & `/gh` :** Integrasi *version control* terpusat (contoh: `/git commit Update fitur`, `/gh pr`).
 
 ---
 
-## 📖 Dokumentasi Lengkap & Wiki
+## 📖 Dokumentasi Lanjutan (Wiki)
 
-Untuk referensi lanjutan, silakan kunjungi [CodeForge Wiki](./docs/wiki/) yang berisi:
+CodeForge dikembangkan dengan filosofi terbuka. Seluruh dokumentasi arsitektur, panduan *tools*, hingga panduan berkontribusi ada di dalam repositori ini:
 
-- 📚 **[User Guide & GitHub Integration](./docs/wiki/User-Guide.md)** - Penjelasan komprehensif seluruh antarmuka dan integrasi.
-- ⚙️ **[Reference & Configuration](./docs/wiki/Reference.md)** - Daftar *keybindings* (pintasan keyboard), *slash commands*, CLI *flags*, dan variabel *environment*.
-- 🛠 **[Development, Architecture & Troubleshooting](./docs/wiki/Development.md)** - Arsitektur, kontribusi kode, penyelesaian masalah, dan distribusi sistem.
+- 📚 **[Dokumentasi Pembangunan (BUILD.md)](./docs/wiki/BUILD.md)** - Panduan cara merakit dan mengembangkan CodeForge dari kode sumber.
+- ⚙️ **[Model Ancaman & Keamanan (THREAT_MODEL.md)](./docs/THREAT_MODEL.md)** - Penjelasan tentang sistem *Sandbox* agen.
+- 🤖 **[Sistem Subagen (SUBAGENTS.md)](./docs/SUBAGENTS.md)** - Bagaimana agen CodeForge mendelegasikan tugas asinkron.
 
 ---
 **Lisensi:** Apache 2.0 (Created by NanoMind — 2026)
