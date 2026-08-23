@@ -296,7 +296,7 @@ func (s *Store) renderBlockLines(i int) []string {
 	}
 
 	// expanded body
-	bodyLines := s.bodyLines(b, innerW)
+	bodyLines := s.bodyLines(i, innerW)
 	for _, ln := range bodyLines {
 		if b.Kind == KindUser {
 			ln = lipgloss.NewStyle().Background(t.BgLight).Foreground(t.TextPrimary).Width(innerW).Render(ln)
@@ -389,7 +389,11 @@ func (s *Store) blockHeader(b Block) string {
 	}
 }
 
-func (s *Store) bodyLines(b Block, width int) []string {
+func (s *Store) bodyLines(i int, width int) []string {
+	b := &s.blocks[i]
+	if b.CachedWidth == width && b.CachedBody == b.Body && b.CachedLines != nil && !b.Streaming {
+		return b.CachedLines
+	}
 	body := b.Body
 	if body == "" {
 		return nil
@@ -451,6 +455,9 @@ func (s *Store) bodyLines(b Block, width int) []string {
 			Render(fmt.Sprintf("… +%d lines (Enter to expand · y to copy)", len(lines)-MaxBodyLines+1))
 		lines = append(lines[:MaxBodyLines-1], trunc)
 	}
+	b.CachedWidth = width
+	b.CachedBody = b.Body
+	b.CachedLines = lines
 	return lines
 }
 

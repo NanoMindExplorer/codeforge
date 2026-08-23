@@ -24,15 +24,18 @@ const (
 
 // Block is one atomic unit in the scrollback (Grok pager entry).
 type Block struct {
-	ID        string
-	TurnID    string // groups user + following assistant/tools in one turn
-	Kind      Kind
-	Title     string // tool name, "you", "assistant", …
-	Body      string // raw text (markdown for assistant)
-	Collapsed bool
-	Foldable  bool
-	Streaming bool   // still receiving chunks
-	Meta      string // e.g. "+12 -3" for diffs
+	ID          string
+	TurnID      string // groups user + following assistant/tools in one turn
+	Kind        Kind
+	Title       string // tool name, "you", "assistant", …
+	Body        string // raw text (markdown for assistant)
+	Collapsed   bool
+	Foldable    bool
+	Streaming   bool   // still receiving chunks
+	Meta        string // e.g. "+12 -3" for diffs
+	CachedLines []string
+	CachedWidth int
+	CachedBody  string
 }
 
 // MaxBodyLines caps expanded block body height for performance (Phase 9).

@@ -78,10 +78,10 @@ Team (or you) can answer “done for v1.0 Grok-parity” with a yes/no checklist
 5. **Scrollbar** optional thumb (theme `scrollbar_*`)
 
 ### Exit criteria
-- [ ] Streaming assistant + multi-step tools appear as separate foldable blocks  
-- [ ] Collapse a tool block → diamond header only; expand restores body  
-- [ ] Manual scroll does not fight auto-follow; `G` resumes follow  
-- [ ] Smoke + golden string tests for 3 block kinds  
+- [x] Streaming assistant + multi-step tools appear as separate foldable blocks  
+- [x] Collapse a tool block → diamond header only; expand restores body  
+- [x] Manual scroll does not fight auto-follow; `G` resumes follow  
+- [x] Smoke + golden string tests for 3 block kinds  
 
 **Depends on:** nothing  
 **Unlocks:** Phase 2–3 visuals, Phase 4 plan UI  
