@@ -46,6 +46,8 @@ func main() {
 		os.Exit(runAgentCLI(args[1:]))
 	case "session":
 		os.Exit(runSessionCLI(args[1:]))
+	case "attach":
+		os.Exit(runAttach())
 	case "doctor":
 		os.Exit(runDoctorCLI())
 	case "version", "--version", "-v":
@@ -82,6 +84,7 @@ func runTUI(args []string) {
 	skipWizard := false
 	minimal := false
 	compact := false
+	serverMode := false
 	sandboxFlag := ""
 	sandboxSet := false
 	var pathArgs []string
@@ -92,6 +95,8 @@ func runTUI(args []string) {
 			noMotion = true
 		case a == "--minimal":
 			minimal = true
+		case a == "--server":
+			serverMode = true
 		case a == "--compact":
 			compact = true
 		case a == "--skip-wizard", a == "--yes", a == "-y":
@@ -196,7 +201,15 @@ func runTUI(args []string) {
 		printBanner()
 	}
 
-	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	mux := tui.NewMultiplexer()
+	if serverMode {
+		if err := startMultiplayerServer(mux); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to start multiplayer server: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithInput(mux), tea.WithOutput(mux))
 	tool.SubJobs.OnUpdate = func(j tool.SubJob) {
 		p.Send(tui.ContextUpdateMsg{Refresh: true})
 	}
