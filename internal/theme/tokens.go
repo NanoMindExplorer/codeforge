@@ -228,6 +228,7 @@ type ThemeOption struct {
 // BuiltInThemes lists all themes for /theme picker (excluding auto/minimal).
 func BuiltInThemes() []ThemeOption {
 	return []ThemeOption{
+		{Name: "catppuccin", Aliases: []string{"catppuccin-mocha", "mocha", "modern"}, Description: "Modern UI Catppuccin Mocha", Truecolor: true, Factory: CatppuccinMocha},
 		{Name: "groknight", Aliases: []string{"grok-night", "dark", "grok", "default"}, Description: "Neutral dark + magenta (default)", Truecolor: false, Factory: GrokNight},
 		{Name: "grokday", Aliases: []string{"grok-day", "light", "day"}, Description: "Light theme for bright backgrounds", Truecolor: false, Factory: GrokDay},
 		{Name: "tokyonight", Aliases: []string{"tokyo-night", "tokyo"}, Description: "Blue-tinted dark (Tokyo Night)", Truecolor: true, Factory: TokyoNight},
@@ -239,13 +240,13 @@ func BuiltInThemes() []ThemeOption {
 
 var (
 	mu      sync.RWMutex
-	current = GrokNight()
+	current = CatppuccinMocha()
 	motion  = true
 	compact = false
 	minimal = false
 	// auto mode: follow system light/dark
 	autoMode      = false
-	autoDarkName  = "groknight"
+	autoDarkName  = "catppuccin"
 	autoLightName = "grokday"
 	// theme order for cycling (excludes auto)
 	themeCycle = []func() Tokens{GrokNight, GrokDay, TokyoNight, RosePineMoon, OscuraMidnight, Aurora}
@@ -373,7 +374,8 @@ func SetByName(name string) bool {
 
 // ThemeNames lists selectable themes (for help text).
 func ThemeNames() []string {
-	return []string{"groknight", "grokday", "tokyonight", "rosepine", "oscura", "aurora", "auto"}
+	return []string{"catppuccin", "tokyonight", "groknight", "grokday", "rosepine", "oscura", "aurora", "auto"}
+	
 }
 
 // ThemeNamesForPicker returns themes suitable for the current terminal color level.
@@ -558,7 +560,7 @@ func InitFromEnv() {
 	}
 	name := os.Getenv("CODEFORGE_THEME")
 	if name == "" {
-		name = "groknight"
+		name = "catppuccin"
 	}
 	SetByName(name)
 	// YAML overrides only when not minimal/auto
@@ -695,5 +697,25 @@ func GlamourStyleName() string {
 		return "dark"
 	default:
 		return "dark"
+	}
+}
+
+// CatppuccinMocha is the modern default theme.
+func CatppuccinMocha() Tokens {
+	return Tokens{
+		Name: "catppuccin",
+		BgBase: "#11111B", BgSurface: "#181825", BgElevated: "#1E1E2E", BgOverlay: "#313244",
+		BgLight:   "#181825",
+		BorderDim: "#45475A", BorderActive: "#B4BEFE", BorderGlow: "#CBA6F7", PromptBorder: "#585B70",
+		SelectionBorder: "#CBA6F7",
+		TextPrimary:     "#CDD6F4", TextSecondary: "#BAC2DE", TextMuted: "#A6ADC8", TextDisabled: "#6C7086",
+		AccentUser: "#CBA6F7", AccentAssistant: "#89B4FA", AccentTool: "#89DCEB",
+		AccentThinking: "#F5C2E7", AccentSystem: "#A6ADC8", AccentPlan: "#F5E0DC",
+		AccentRunning: "#F9E2AF",
+		AccentAI:      "#89B4FA", AccentAgent: "#89DCEB", AccentFocus: "#B4BEFE",
+		Success: "#A6E3A1", Danger: "#F38BA8", Warning: "#F9E2AF", Info: "#89B4FA",
+		DiffAddBg: "#1E2A1E", DiffAddFg: "#A6E3A1", DiffDelBg: "#2A1E22", DiffDelFg: "#F38BA8", DiffCtxFg: "#6C7086",
+		ScrollbarBg: "#1E1E2E", ScrollbarFg: "#45475A",
+		MdHeading: "#CBA6F7", MdLink: "#89B4FA", MdCode: "#89DCEB", MdCodeBg: "#1E1E2E",
 	}
 }
