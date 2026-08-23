@@ -7,7 +7,7 @@ import (
 
 func TestStartAndCancel(t *testing.T) {
 	m := New()
-	task, err := m.Start(t.TempDir(), "sleep 30")
+	task, err := m.Start(t.TempDir(), "exec sleep 30")
 	if err != nil {
 		t.Fatal(err)
 	}
