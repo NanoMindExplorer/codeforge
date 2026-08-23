@@ -92,7 +92,6 @@ func (s *Store) withScrollbar(lines []string, total, vpH int) string {
 	t := theme.Current()
 	contentW := s.width - 1
 	if contentW < 8 {
-		contentW = s.width
 		var b strings.Builder
 		for i, ln := range lines {
 			if i > 0 {
@@ -113,37 +112,24 @@ func (s *Store) withScrollbar(lines []string, total, vpH int) string {
 			thumbAt = vpH - 1
 		}
 	}
+
+	// Precompile styles to avoid heavy allocation in loops
+	thumbChar := lipgloss.NewStyle().Foreground(t.AccentUser).Render("█")
+	trackChar := lipgloss.NewStyle().Foreground(t.BorderDim).Render("│")
+
 	var b strings.Builder
 	for i, ln := range lines {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
-		// pad/truncate visual — lipgloss width
-		plain := ln
-		if lipgloss.Width(plain) > contentW {
-			// rough cut
-			r := []rune(stripANSIApprox(plain))
-			if len(r) > contentW-1 {
-				plain = string(r[:contentW-1]) + "…"
-			}
-		}
-		ch := "│"
-		style := lipgloss.NewStyle().Foreground(t.BorderDim)
+		b.WriteString(ln)
 		if total > vpH && i == thumbAt {
-			ch = "█"
-			style = lipgloss.NewStyle().Foreground(t.AccentUser)
+			b.WriteString(thumbChar)
 		} else if total > vpH {
-			ch = "│"
+			b.WriteString(trackChar)
 		} else {
-			ch = " "
+			b.WriteString(" ")
 		}
-		b.WriteString(plain)
-		// pad to contentW
-		pad := contentW - lipgloss.Width(plain)
-		if pad > 0 {
-			b.WriteString(strings.Repeat(" ", pad))
-		}
-		b.WriteString(style.Render(ch))
 	}
 	return b.String()
 }
@@ -275,6 +261,25 @@ func (s *Store) renderBlockLines(i int) []string {
 		pfx = lipgloss.NewStyle().Foreground(t.AccentFocus).Bold(true).Render("┃ ")
 	}
 
+	contentW := s.width - 1
+	if contentW < 8 {
+		contentW = 8
+	}
+	padLine := func(ln string) string {
+		w := lipgloss.Width(ln)
+		if w > contentW {
+			r := []rune(stripANSIApprox(ln))
+			if len(r) > contentW-1 {
+				return string(r[:contentW-1]) + "…"
+			}
+			return ln
+		}
+		if contentW > w {
+			return ln + strings.Repeat(" ", contentW-w)
+		}
+		return ln
+	}
+
 	var lines []string
 	header := s.blockHeader(*b)
 	if selected {
@@ -282,7 +287,7 @@ func (s *Store) renderBlockLines(i int) []string {
 	} else {
 		header = lipgloss.NewStyle().Foreground(headerColor(*b, t)).Render(header)
 	}
-	lines = append(lines, pfx+header)
+	lines = append(lines, padLine(pfx+header))
 
 	if b.Collapsed && b.Foldable {
 		// collapsed: one summary line only (already header)
@@ -292,15 +297,16 @@ func (s *Store) renderBlockLines(i int) []string {
 				sum = sum[:50] + "…"
 			}
 			if sum != "" {
-				lines = append(lines, pfx+lipgloss.NewStyle().Foreground(t.TextMuted).Render("  "+sum))
+				lines = append(lines, padLine(pfx+lipgloss.NewStyle().Foreground(t.TextMuted).Render("  "+sum)))
 			}
 		}
-		lines = append(lines, "")
+		lines = append(lines, padLine(""))
 
 		if !b.Streaming {
 			b.CachedVisual = lines
 			b.CachedVisualWidth = s.width
 			b.CachedVisualSel = selected
+			b.CachedBody = b.Body
 		}
 		return lines
 	}
@@ -311,14 +317,15 @@ func (s *Store) renderBlockLines(i int) []string {
 		if b.Kind == KindUser {
 			ln = lipgloss.NewStyle().Background(t.BgLight).Foreground(t.TextPrimary).Width(innerW).Render(ln)
 		}
-		lines = append(lines, pfx+ln)
+		lines = append(lines, padLine(pfx+ln))
 	}
-	lines = append(lines, "") // gap after block
+	lines = append(lines, padLine("")) // gap after block
 
 	if !b.Streaming {
 		b.CachedVisual = lines
 		b.CachedVisualWidth = s.width
 		b.CachedVisualSel = selected
+		b.CachedBody = b.Body
 	}
 
 	return lines
