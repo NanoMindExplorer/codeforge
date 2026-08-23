@@ -143,4 +143,3 @@ func TestPromptEscClearsOrBlurs(t *testing.T) {
 	_ = m.chat.InputValue()
 	_ = time.Now() // keep time import stable if needed
 }
-
