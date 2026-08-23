@@ -541,6 +541,8 @@ func NewRegistry(workDir string) *Registry {
 	// StagedWriter gates writes: BUILD=stage, YOLO=immediate, DESIGN=plan.md only
 	r.Register(staged)
 	r.Register(sr)
+	r.Register(&SemanticSearch{WorkDir: workDir})
+	r.Register(&SemanticIndexBuild{WorkDir: workDir})
 	r.Register(&ApplyPatch{WorkDir: workDir, Staged: staged})
 	// Design plan tools (Phase 5)
 	r.Register(&WritePlan{Staged: staged})

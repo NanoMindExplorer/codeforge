@@ -401,3 +401,12 @@ func Global() *Index {
 	defer gMu.RUnlock()
 	return gIdx
 }
+
+// Docs returns a copy of indexed docs.
+func (idx *Index) Docs() []Doc {
+	idx.mu.RLock()
+	defer idx.mu.RUnlock()
+	out := make([]Doc, len(idx.docs))
+	copy(out, idx.docs)
+	return out
+}
