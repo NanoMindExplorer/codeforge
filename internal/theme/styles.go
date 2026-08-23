@@ -76,7 +76,8 @@ func AccentBar(color lipgloss.Color, height int) string {
 
 // BlockPrefix returns "┃ " in the role accent color.
 func BlockPrefix(color lipgloss.Color) string {
-	return lipgloss.NewStyle().Foreground(color).Render("┃ ")
+	// Modern transparent indent instead of a heavy structural line
+	return lipgloss.NewStyle().Foreground(color).Render("  ")
 }
 
 // PaneBorder for optional side drawers.
@@ -179,20 +180,24 @@ func ModeBadge(mode string) string {
 func PromptFrame(width int, focused bool) lipgloss.Style {
 	t := Current()
 	lay := CurrentLayout()
-	border := t.PromptBorder
-	if focused {
-		border = t.AccentUser
-	}
+
+	// Modern floating-pill aesthetic instead of a heavy box
 	st := lipgloss.NewStyle().
 		Padding(lay.PromptPadV, 1).
 		Width(width)
+
 	if MinimalMode() {
-		// No chrome: plain text, terminal-native colors only
 		return st.Foreground(t.TextPrimary)
 	}
+
+	borderColor := t.BorderDim
+	if focused {
+		borderColor = t.AccentUser
+	}
+
 	return st.
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(border).
+		Border(lipgloss.NormalBorder(), true, false, false, false).
+		BorderForeground(borderColor).
 		Background(t.BgElevated)
 }
 

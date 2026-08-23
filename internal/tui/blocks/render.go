@@ -258,7 +258,7 @@ func (s *Store) renderBlockLines(i int) []string {
 	}
 	pfx := theme.BlockPrefix(accent)
 	if selected {
-		pfx = lipgloss.NewStyle().Foreground(t.AccentFocus).Bold(true).Render("┃ ")
+		pfx = lipgloss.NewStyle().Foreground(t.AccentFocus).Bold(true).Render("▍ ")
 	}
 
 	contentW := s.width - 1
@@ -315,7 +315,7 @@ func (s *Store) renderBlockLines(i int) []string {
 	bodyLines := s.bodyLines(i, innerW)
 	for _, ln := range bodyLines {
 		if b.Kind == KindUser {
-			ln = lipgloss.NewStyle().Background(t.BgLight).Foreground(t.TextPrimary).Width(innerW).Render(ln)
+			ln = lipgloss.NewStyle().Foreground(t.AccentUser).Render(ln)
 		}
 		lines = append(lines, padLine(pfx+ln))
 	}
@@ -369,7 +369,7 @@ func (s *Store) blockHeader(b Block) string {
 	}
 	switch b.Kind {
 	case KindUser:
-		return fold + "you"
+		return fold + "● You"
 	case KindDiff:
 		m := b.Meta
 		if m != "" {
@@ -378,36 +378,36 @@ func (s *Store) blockHeader(b Block) string {
 		return fold + "▤ " + b.Title + m
 	case KindThinking:
 		if !pg.ShowThinking() {
-			return fold + "💭"
+			return fold + "✧ Thinking"
 		}
 		stream := ""
 		if b.Streaming {
-			stream = " …"
+			stream = " ✦"
 		}
-		label := "thinking"
+		label := "Thinking"
 		if !pg.ThinkingHeader() {
 			label = ""
 		}
 		if label == "" {
-			return fold + "💭" + stream
+			return fold + "✧" + stream
 		}
-		return fold + "💭 " + label + stream
+		return fold + "✧ " + label + stream
 	case KindAssistant:
 		stream := ""
 		if b.Streaming {
-			stream = " …"
+			stream = " ✦"
 		}
-		return fold + "assistant" + stream
+		return fold + "✧ CodeForge" + stream
 	case KindSystem:
-		return fold + "system"
+		return fold + "⚙ System"
 	case KindToolCall:
 		icon := pg.ToolBulletChar()
 		if icon == "" {
-			icon = theme.ToolIcon(b.Title)
+			icon = "◇"
 		}
 		return fold + icon + " " + b.Title
 	case KindToolResult:
-		return fold + b.Title
+		return fold + "◆ " + b.Title
 	default:
 		return fold + b.Title
 	}

@@ -566,7 +566,7 @@ func (c ChatModel) ViewPrompt(focused bool) string {
 	t := theme.Current()
 	c.ta.FocusedStyle.Prompt = lipgloss.NewStyle().Foreground(t.AccentUser).Bold(true)
 	c.ta.BlurredStyle.Prompt = lipgloss.NewStyle().Foreground(t.TextMuted)
-	c.ta.Prompt = "❯ "
+	c.ta.Prompt = "✧ "
 	if !focused {
 		c.ta.Blur()
 	}
