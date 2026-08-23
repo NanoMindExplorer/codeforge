@@ -53,10 +53,10 @@ type Model struct {
 	focusPrompt bool
 	mode        Mode
 	// sessionMode: BUILD (staged) → DESIGN (plan-only) → YOLO (always-approve)
-	sessionMode tool.SessionMode
+	sessionMode   tool.SessionMode
 	welcomeCursor int
-	showPanels  bool // side drawers Diff+Files
-	activePane  Pane // when panels on
+	showPanels    bool // side drawers Diff+Files
+	activePane    Pane // when panels on
 
 	chat     ChatModel
 	diff     DiffModel
