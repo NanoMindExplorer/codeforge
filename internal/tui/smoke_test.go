@@ -28,6 +28,8 @@ func TestSmokeRender(t *testing.T) {
 	cfg := config.Default()
 
 	m := New(cfg, reg, tools, nil, t.TempDir())
+	m.mode = ModeInsert
+	m.focusPrompt = true
 	// size
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m = nm.(Model)
@@ -91,6 +93,8 @@ func TestThemePickerPreviewAndCancel(t *testing.T) {
 	reg := provider.NewRegistry()
 	_ = reg.Register(provider.NewGeminiProvider("k", "gemini-2.5-flash"))
 	m := New(config.Default(), reg, tool.NewRegistry(t.TempDir()), nil, t.TempDir())
+	m.mode = ModeInsert
+	m.focusPrompt = true
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m = asModel(nm)
 	_ = m.executeSlashCommand("/theme")
@@ -118,6 +122,8 @@ func TestDoubleEscClearsPrompt(t *testing.T) {
 	reg := provider.NewRegistry()
 	_ = reg.Register(provider.NewGeminiProvider("k", "gemini-2.5-flash"))
 	m := New(config.Default(), reg, tool.NewRegistry(t.TempDir()), nil, t.TempDir())
+	m.mode = ModeInsert
+	m.focusPrompt = true
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m = asModel(nm)
 	m.focusPrompt = true
@@ -149,6 +155,8 @@ func TestSlashMenuActivates(t *testing.T) {
 	reg := provider.NewRegistry()
 	_ = reg.Register(provider.NewGeminiProvider("k", "gemini-2.5-flash"))
 	m := New(config.Default(), reg, tool.NewRegistry(t.TempDir()), nil, t.TempDir())
+	m.mode = ModeInsert
+	m.focusPrompt = true
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m = nm.(Model)
 	m.focusPrompt = true
@@ -168,6 +176,8 @@ func TestModelSwitchSlash(t *testing.T) {
 	_ = reg.Register(provider.NewGeminiProvider("k", "gemini-2.5-flash"))
 	tools := tool.NewRegistry(t.TempDir())
 	m := New(config.Default(), reg, tools, nil, t.TempDir())
+	m.mode = ModeInsert
+	m.focusPrompt = true
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	_ = m.executeSlashCommand("/model gemini-2.5-pro")
 	cur, _ := reg.Current()
@@ -183,6 +193,8 @@ func TestContextUpdateMsgWires(t *testing.T) {
 	dir := t.TempDir()
 	tools := tool.NewRegistry(dir)
 	m := New(config.Default(), reg, tools, nil, dir)
+	m.mode = ModeInsert
+	m.focusPrompt = true
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m = nm.(Model)
 	nm, _ = m.Update(ContextUpdateMsg{Refresh: true})

@@ -21,6 +21,10 @@ func testModel(t *testing.T) Model {
 	tools := tool.NewRegistry(t.TempDir())
 	cfg := config.Default()
 	m := New(cfg, reg, tools, nil, t.TempDir())
+	m.mode = ModeInsert
+	m.focusPrompt = true
+	m.chat.SetMode(ModeInsert)
+	m.chat.FocusInput()
 	nm, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	return asModel(nm)
 }
