@@ -1,5 +1,8 @@
 # CodeForge
 
+![Version](https://img.shields.io/badge/version-v1.9.3-blue)
+
+
 > *Terminal AI coding companion — open, modular, vendor-neutral — and it feels like the future.*
 
 CodeForge adalah antarmuka terminal (TUI) berbasis AI mutakhir untuk perekayasa perangkat lunak. Dirancang dengan filosofi IDE modern dan terintegrasi langsung dengan GitHub, Git, serta penyedia LLM pilihan Anda (Gemini, Grok, Claude, OpenAI, Ollama).
