@@ -14,6 +14,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"golang.org/x/term"
 
 	"github.com/codeforge/tui/internal/acp"
 	"github.com/codeforge/tui/internal/app"
@@ -201,15 +202,25 @@ func runTUI(args []string) {
 		printBanner()
 	}
 
-	mux := tui.NewMultiplexer()
+	var p *tea.Program
 	if serverMode {
+		mux := tui.NewMultiplexer()
 		if err := startMultiplayerServer(mux); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to start multiplayer server: %v\n", err)
 			os.Exit(1)
 		}
-	}
+		p = tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithInput(mux), tea.WithOutput(mux))
 
-	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithInput(mux), tea.WithOutput(mux))
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			w, h, err := term.GetSize(int(os.Stdout.Fd()))
+			if err == nil && w > 0 {
+				p.Send(tea.WindowSizeMsg{Width: w, Height: h})
+			}
+		}()
+	} else {
+		p = tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	}
 	tool.SubJobs.OnUpdate = func(j tool.SubJob) {
 		p.Send(tui.ContextUpdateMsg{Refresh: true})
 	}
