@@ -76,6 +76,16 @@ Ini akan secara dinamis menyalin dan mengompilasi dari *branch* lokal Anda.
 
 ## 4. Arsitektur Mutakhir CodeForge (UI/UX)
 Harap perhatikan konvensi desain yang wajib dipatuhi:
-- **Jangan menambah *Slash Command* baru** kecuali untuk orkestrasi arsitektur tinggi. Ikuti filosofi **"The Golden Dozen"**. Fungsionalitas agen harus berbasis *Natural Language Intent*.
-- Pastikan interaksi TUI (BubbleTea) bebas dari pemblokiran I/O (*I/O Blocking*). Selalu gunakan fungsi asinkron (seperti `internal/bgtask`) untuk menghindari pembekuan UI (*freeze*).
-- Jika ada *tool* atau izin akses (*permissions*) baru, selalu perbarui model keamanan di `internal/sandbox`.
+
+### 4.1. Filosofi TUI & Desain Visual
+- **Desain Minimalis & Mutakhir:** CodeForge mengadopsi antarmuka estetika generasi baru (mirip Cursor/Zed). Jangan gunakan garis tebal atau blok kotak *full-width* untuk pesan pengguna. Gunakan indentasi transparan, *badge* teks untuk status (seperti `● You`, `✧ CodeForge`, `◇ Tool`), dan komponen *pill-style floating input*.
+- **Natural Language Intent:** Jangan menambah *Slash Command* baru kecuali untuk orkestrasi arsitektur tinggi. Ikuti filosofi **"The Golden Dozen"**. Fungsionalitas agen harus berbasis *Natural Language Intent*.
+
+### 4.2. Performa & Manajemen Latensi (Zero-Latency Rendering)
+TUI BubbleTea di CodeForge dibangun dengan sistem rendering tingkat tinggi untuk memastikan **latensi 0 (nol)** saat *scrolling* menggunakan *mouse* atau saat mengetik cepat:
+- **Jangan memanggil `lipgloss.Width()` atau `lipgloss.NewStyle().Render()` di dalam iterasi *hot-loop*** (seperti perulangan baris *scrollbar* atau pembuatan *frame*). Kalkulasi ANSI ini sangat membebani CPU. Gunakan gaya (*styles*) yang telah dikompilasi sebelumnya (*pre-compiled*).
+- **Sistem `CachedVisual` & `CachedBody`:** Seluruh blok *markdown*, penyorotan sintaks (*syntax highlighting*), dan padding spasi harus **dikalkulasi sekali di awal dan disimpan ke dalam *cache*** (`internal/tui/blocks/render.go`). Jangan pernah me-render blok berulang kali pada *frame* yang sama atau mengabaikan *cache* untuk blok yang *collapsed* (tersembunyi).
+- **Asynchronous Non-Blocking:** Pastikan interaksi bebas dari pemblokiran I/O (*I/O Blocking*). Selalu gunakan fungsi asinkron (seperti `internal/bgtask`) untuk menghindari pembekuan UI (*freeze*).
+
+### 4.3. Keamanan & Izin
+- Jika ada *tool* atau izin akses (*permissions*) baru yang diimplementasikan, Anda **wajib** memperbarui perlindungan dan model kebijakan di `internal/sandbox`.
