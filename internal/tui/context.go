@@ -3,11 +3,13 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/codeforge/tui/internal/theme"
+	"github.com/codeforge/tui/internal/tool"
 )
 
 // FileEntry is one row in the context pane.
@@ -173,10 +175,60 @@ func (c ContextModel) View() string {
 	}
 
 	sb.WriteString("\n")
+	subjobs := tool.SubJobs.List()
+	if len(subjobs) > 0 {
+		sb.WriteString(theme.StyleHeader().Render("Subagents") + "\n")
+		shownSub := 0
+		maxSub := c.height - shown - 10
+		if maxSub < 3 { maxSub = 3 }
+		for _, j := range subjobs {
+			if shownSub >= maxSub {
+				sb.WriteString(lipgloss.NewStyle().Foreground(t.TextMuted).Render("  …") + "\n")
+				break
+			}
+			statusColor := t.TextMuted
+			icon := "⏳"
+			switch j.Status {
+			case tool.SubRunning:
+				statusColor = t.AccentAssistant
+				icon = "🚀"
+			case tool.SubSucceeded:
+				statusColor = t.Success
+				icon = "✅"
+			case tool.SubFailed:
+				statusColor = t.Danger
+				icon = "❌"
+			}
+			label := j.ID
+			desc := j.Description
+			if len(desc) > c.width-15 {
+				desc = desc[:c.width-16] + "…"
+			}
+			if desc != "" {
+				label += " - " + desc
+			}
+			label += fmt.Sprintf(" [%d tools]", j.ToolsUsed)
+			
+			sb.WriteString(lipgloss.NewStyle().Foreground(statusColor).Render("  "+icon+" "+label) + "\n")
+			shownSub++
+		}
+		sb.WriteString("\n")
+	}
+
 	sb.WriteString(theme.StyleHeader().Render("Tools") + "\n")
-	for _, tool := range c.tools {
-		icon := theme.ToolIcon(tool)
-		sb.WriteString(lipgloss.NewStyle().Foreground(t.TextMuted).Render("  "+icon+" "+tool) + "\n")
+	toolsShown := 0
+	maxTools := c.height - shown - len(subjobs) - 10
+	if maxTools < 3 {
+		maxTools = 3
+	}
+	for _, toolName := range c.tools {
+		if toolsShown >= maxTools {
+			sb.WriteString(lipgloss.NewStyle().Foreground(t.TextMuted).Render("  …") + "\n")
+			break
+		}
+		icon := theme.ToolIcon(toolName)
+		sb.WriteString(lipgloss.NewStyle().Foreground(t.TextMuted).Render("  "+icon+" "+toolName) + "\n")
+		toolsShown++
 	}
 
 	return lipgloss.NewStyle().

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"github.com/codeforge/tui/internal/tool"
 	"fmt"
 	"io"
 	"os"
@@ -196,6 +197,9 @@ func runTUI(args []string) {
 	}
 
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	tool.SubJobs.OnUpdate = func(j tool.SubJob) {
+		p.Send(tui.ContextUpdateMsg{Refresh: true})
+	}
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
