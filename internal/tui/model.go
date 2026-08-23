@@ -409,6 +409,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, c)
 		}
 
+	case UpdateFinishedMsg:
+		if msg.Err != nil {
+			m.toast = components.NewToast(fmt.Sprintf("Update failed: %v", msg.Err), "error", 5*time.Second)
+		} else {
+			m.toast = components.NewToast("CodeForge updated! Restart to apply.", "success", 10*time.Second)
+		}
+
 	case ToastMsg:
 		m.toast = components.NewToast(msg.Text, msg.Kind, 3*time.Second)
 

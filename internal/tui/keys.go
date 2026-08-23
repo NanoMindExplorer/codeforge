@@ -48,6 +48,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showPanels = !m.showPanels
 		m.recalcSizes()
 		return m, nil
+	case "ctrl+u":
+		m.toast = components.NewToast("Updating CodeForge to latest...", "info", 5*time.Second)
+		return m, doUpdate
 	case "ctrl+k":
 		// steal: close slash first
 		m.slash.Close()
