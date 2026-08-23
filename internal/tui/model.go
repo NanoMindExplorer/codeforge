@@ -54,6 +54,7 @@ type Model struct {
 	mode        Mode
 	// sessionMode: BUILD (staged) → DESIGN (plan-only) → YOLO (always-approve)
 	sessionMode tool.SessionMode
+	welcomeCursor int
 	showPanels  bool // side drawers Diff+Files
 	activePane  Pane // when panels on
 
@@ -160,6 +161,7 @@ const (
 	ModeBlockView
 	ModeSettings
 	ModeAskUser
+	ModeWelcome
 )
 
 func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry, repo *git.Repo, workdir string) Model {
@@ -221,7 +223,7 @@ func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry,
 		workdir:     workdir,
 		keys:        keymap.Default(),
 		focusPrompt: true,
-		mode:        ModeInsert,
+		mode:        ModeWelcome,
 		sessionMode: tool.SessionBuild,
 		showPanels:  true,
 		activePane:  PaneChat,
@@ -583,6 +585,10 @@ func (m Model) View() string {
 	}
 	if m.width == 0 {
 		return "Starting CodeForge…\n"
+	}
+
+	if m.mode == ModeWelcome {
+		return m.ViewWelcome()
 	}
 
 	// ── Review fullscreen ────────────────────────────

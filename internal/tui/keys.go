@@ -81,6 +81,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.mode == ModeAskUser {
 		return m.updateAskUser(msg)
 	}
+	if m.mode == ModeWelcome {
+		return m.updateWelcome(msg)
+	}
 	if m.mode == ModeBlockView {
 		return m.updateBlockView(msg)
 	}
@@ -1079,6 +1082,41 @@ func (m Model) finishPlanReview() (tea.Model, tea.Cmd) {
 		m.chat.AddSystemMessage("Plan abandoned → BUILD mode")
 		m.toast = components.NewToast("Plan quit", "warning", 2*time.Second)
 		return m, nil
+	}
+	return m, nil
+}
+
+func (m Model) updateWelcome(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.welcomeCursor > 0 {
+			m.welcomeCursor--
+		}
+	case "down", "j":
+		if m.welcomeCursor < 3 {
+			m.welcomeCursor++
+		}
+	case "enter", "l":
+		switch m.welcomeCursor {
+		case 0:
+			// New Session
+			m.mode = ModeInsert
+		case 1:
+			// Resume Last Session
+			m.mode = ModeInsert
+			s, err := session.LastForWorkdir(m.workdir)
+			if err == nil && s != nil {
+				m.applySession(s)
+			}
+			return m, nil
+		case 2:
+			// Select History
+			m.mode = ModeSessionPick
+			return m.updateSessionPicker(msg)
+		case 3:
+			// Settings
+			m.mode = ModeSettings
+		}
 	}
 	return m, nil
 }
