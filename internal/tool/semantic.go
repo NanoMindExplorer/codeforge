@@ -47,7 +47,7 @@ func (s *SemanticSearch) Execute(input json.RawMessage) Result {
 	if strings.TrimSpace(in.Query) == "" {
 		return Result{Error: "query required"}
 	}
-	
+
 	if globalSemanticIndex == nil {
 		// Initialize with default Ollama provider
 		prov := provider.NewOllamaEmbedProvider("", "")
@@ -63,11 +63,11 @@ func (s *SemanticSearch) Execute(input json.RawMessage) Result {
 	if err != nil {
 		return Result{Error: fmt.Sprintf("semantic search failed: %v", err)}
 	}
-	
+
 	if len(hits) == 0 {
 		return Result{Success: true, Output: "No semantic matches found for: " + in.Query}
 	}
-	
+
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("Semantic matches for %q:\n\n", in.Query))
 	for _, h := range hits {
@@ -90,7 +90,7 @@ func (s *SemanticIndexBuild) Description() string {
 
 func (s *SemanticIndexBuild) Schema() map[string]any {
 	return map[string]any{
-		"type": "object",
+		"type":       "object",
 		"properties": map[string]any{},
 	}
 }
@@ -102,13 +102,13 @@ func (s *SemanticIndexBuild) Execute(input json.RawMessage) Result {
 		_ = idx.Load()
 		globalSemanticIndex = idx
 	}
-	
+
 	// Just use the existing AST indexer to get samples and embed them
 	built, err := index.Build(s.WorkDir)
 	if err != nil {
 		return Result{Error: fmt.Sprintf("failed to parse workspace: %v", err)}
 	}
-	
+
 	snippets := make(map[string]string)
 	for _, d := range built.Docs() {
 		// Only take files that have symbols/sample
@@ -116,19 +116,19 @@ func (s *SemanticIndexBuild) Execute(input json.RawMessage) Result {
 			snippets[d.Path] = d.Sample
 		}
 	}
-	
+
 	if len(snippets) == 0 {
 		return Result{Success: true, Output: "No code files found to embed."}
 	}
-	
+
 	ctx := context.Background()
 	if err := globalSemanticIndex.AddDocs(ctx, snippets); err != nil {
 		return Result{Error: fmt.Sprintf("embedding failed (ensure ollama is running): %v", err)}
 	}
-	
+
 	if err := globalSemanticIndex.Save(); err != nil {
 		return Result{Error: fmt.Sprintf("saving index failed: %v", err)}
 	}
-	
+
 	return Result{Success: true, Output: fmt.Sprintf("Semantic index built successfully. Embedded %d files.", len(snippets))}
 }

@@ -1,9 +1,9 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -180,7 +180,9 @@ func (c ContextModel) View() string {
 		sb.WriteString(theme.StyleHeader().Render("Subagents") + "\n")
 		shownSub := 0
 		maxSub := c.height - shown - 10
-		if maxSub < 3 { maxSub = 3 }
+		if maxSub < 3 {
+			maxSub = 3
+		}
 		for _, j := range subjobs {
 			if shownSub >= maxSub {
 				sb.WriteString(lipgloss.NewStyle().Foreground(t.TextMuted).Render("  …") + "\n")
@@ -208,7 +210,7 @@ func (c ContextModel) View() string {
 				label += " - " + desc
 			}
 			label += fmt.Sprintf(" [%d tools]", j.ToolsUsed)
-			
+
 			sb.WriteString(lipgloss.NewStyle().Foreground(statusColor).Render("  "+icon+" "+label) + "\n")
 			shownSub++
 		}

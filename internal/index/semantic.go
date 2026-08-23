@@ -14,16 +14,16 @@ import (
 )
 
 type VectorDoc struct {
-	Path      string      `json:"path"`
-	Snippet   string      `json:"snippet"`
-	Embedding []float32   `json:"embedding"`
+	Path      string    `json:"path"`
+	Snippet   string    `json:"snippet"`
+	Embedding []float32 `json:"embedding"`
 }
 
 type SemanticIndex struct {
-	mu      sync.RWMutex
-	docs    []VectorDoc
-	root    string
-	prov    provider.EmbeddingProvider
+	mu   sync.RWMutex
+	docs []VectorDoc
+	root string
+	prov provider.EmbeddingProvider
 }
 
 func NewSemanticIndex(root string, prov provider.EmbeddingProvider) *SemanticIndex {
@@ -53,12 +53,12 @@ func (s *SemanticIndex) Load() error {
 func (s *SemanticIndex) Save() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	dir := filepath.Dir(s.indexPath())
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	
+
 	b, err := json.MarshalIndent(s.docs, "", "  ")
 	if err != nil {
 		return err
@@ -94,7 +94,9 @@ func (s *SemanticIndex) Search(ctx context.Context, query string, limit int) ([]
 	if s.prov == nil {
 		return nil, fmt.Errorf("no embedding provider configured")
 	}
-	if limit <= 0 { limit = 5 }
+	if limit <= 0 {
+		limit = 5
+	}
 
 	emb, err := s.prov.EmbedTexts(ctx, []string{query})
 	if err != nil {
@@ -113,9 +115,9 @@ func (s *SemanticIndex) Search(ctx context.Context, query string, limit int) ([]
 		score := cosineSimilarity(qVec, d.Embedding)
 		if score > 0.4 { // basic threshold
 			hits = append(hits, SemanticHit{
-				Path: d.Path,
+				Path:    d.Path,
 				Snippet: d.Snippet,
-				Score: score,
+				Score:   score,
 			})
 		}
 	}
@@ -133,20 +135,20 @@ func (s *SemanticIndex) AddDocs(ctx context.Context, snippets map[string]string)
 	if s.prov == nil {
 		return fmt.Errorf("no embedding provider configured")
 	}
-	
+
 	var paths []string
 	var texts []string
 	for p, text := range snippets {
 		paths = append(paths, p)
 		texts = append(texts, text)
 	}
-	
+
 	// Batch processing (naive)
 	embeddings, err := s.prov.EmbedTexts(ctx, texts)
 	if err != nil {
 		return err
 	}
-	
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, emb := range embeddings {
@@ -162,8 +164,8 @@ func (s *SemanticIndex) AddDocs(ctx context.Context, snippets map[string]string)
 		}
 		if !replaced {
 			s.docs = append(s.docs, VectorDoc{
-				Path: paths[i],
-				Snippet: texts[i],
+				Path:      paths[i],
+				Snippet:   texts[i],
 				Embedding: emb,
 			})
 		}

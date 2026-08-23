@@ -4,8 +4,8 @@
 package main
 
 import (
-	"github.com/codeforge/tui/internal/tool"
 	"fmt"
+	"github.com/codeforge/tui/internal/tool"
 	"io"
 	"os"
 	"path/filepath"
