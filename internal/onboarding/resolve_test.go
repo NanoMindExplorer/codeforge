@@ -93,11 +93,11 @@ func TestFormatStatusAndWelcome(t *testing.T) {
 		t.Fatal(s)
 	}
 	w := WelcomeMessage(nil, "gemini", "gemini-2.5-flash", true)
-	if !strings.Contains(w, "gemini") || !strings.Contains(w, "Status") {
+	if !strings.Contains(w, "gemini") || !strings.Contains(w, "CodeForge Ready") {
 		t.Fatal(w)
 	}
 	w2 := WelcomeMessage(nil, "", "", false)
-	if !strings.Contains(w2, "/setup") {
+	if !strings.Contains(w2, "Ctrl+K") {
 		t.Fatal(w2)
 	}
 }

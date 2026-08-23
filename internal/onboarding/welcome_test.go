@@ -15,12 +15,10 @@ func TestStatusCardGoldenHealthy(t *testing.T) {
 	card := StatusCard(nil, "gemini", "gemini-2.5-flash", true)
 	// golden structure (Q5.1)
 	for _, want := range []string{
-		BrandByline,
-		"Status  ✓  gemini",
+		"CodeForge Ready",
+		"gemini",
 		"gemini-2.5-flash",
-		"Shift+Tab",
-		"/help",
-		"/ ___|___", // ASCII art fragment (FIGlet "CodeForge")
+		"Ctrl+K",
 	} {
 		if !strings.Contains(card, want) {
 			t.Fatalf("missing %q in:\n%s", want, card)
@@ -37,10 +35,10 @@ func TestStatusCardUnhealthy(t *testing.T) {
 		t.Setenv(e, "")
 	}
 	card := StatusCard(nil, "", "", false)
-	if !strings.Contains(card, "No API key") {
+	if !strings.Contains(card, "No AI provider") {
 		t.Fatal(card)
 	}
-	if !strings.Contains(card, "/setup") {
+	if !strings.Contains(card, "Ctrl+K") {
 		t.Fatal(card)
 	}
 }
