@@ -55,6 +55,7 @@ type Model struct {
 	// sessionMode: BUILD (staged) → DESIGN (plan-only) → YOLO (always-approve)
 	sessionMode   tool.SessionMode
 	welcomeCursor int
+	onboard       OnboardModel
 	showPanels    bool // side drawers Diff+Files
 	activePane    Pane // when panels on
 
@@ -162,6 +163,7 @@ const (
 	ModeSettings
 	ModeAskUser
 	ModeWelcome
+	ModeOnboard
 )
 
 func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry, repo *git.Repo, workdir string) Model {
@@ -244,6 +246,7 @@ func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry,
 		blockV:      blockview.New(),
 		settings:    settings.New(),
 		session:     sess,
+		onboard:     NewOnboardModel(),
 		ghClient:    ghc,
 		vimMode:     vim,
 		perm:        permEng,
@@ -275,7 +278,8 @@ func New(cfg *config.Config, provReg *provider.Registry, toolReg *tool.Registry,
 	}
 	// Q5.2 empty-state hints (one line each, only when relevant)
 	if !healthy {
-		m.chat.AddSystemMessage(onboarding.EmptyStateNoKey())
+		m.mode = ModeOnboard
+		m.focusPrompt = false
 	} else if onboarding.ProjectLooksEmpty(workdir) {
 		m.chat.AddSystemMessage(onboarding.EmptyStateNoProject(workdir))
 	}
@@ -585,6 +589,12 @@ func (m Model) View() string {
 	}
 	if m.width == 0 {
 		return "Starting CodeForge…\n"
+	}
+
+	if m.mode == ModeOnboard {
+		m.onboard.width = m.width
+		m.onboard.height = m.height
+		return m.onboard.View()
 	}
 
 	if m.mode == ModeWelcome {

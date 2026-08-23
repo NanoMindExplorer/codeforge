@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/codeforge/tui/internal/checkpoint"
+	"github.com/codeforge/tui/internal/onboarding"
 	"github.com/codeforge/tui/internal/permission"
 	"github.com/codeforge/tui/internal/provider"
 	"github.com/codeforge/tui/internal/session"
@@ -81,7 +82,34 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.mode == ModeAskUser {
 		return m.updateAskUser(msg)
 	}
+	if m.mode == ModeOnboard {
+		cmd, done, prov, key := m.onboard.Update(msg)
+		if done {
+			if prov != "ollama" && key == "" {
+				// wait for key
+			} else {
+				m.mode = ModeInsert
+				m.focusPrompt = true
+				if _, err := onboarding.ApplyKey(m.providerReg, prov, key, ""); err == nil {
+					m.chat.AddSystemMessage("✅ API Key configured successfully for " + prov)
+				}
+			}
+		}
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+	}
+
 	if m.mode == ModeWelcome {
+		// If they press a normal printable key, switch to chat and type
+		if msg.Type == tea.KeyRunes || msg.String() == "/" || msg.String() == "@" {
+			m.mode = ModeInsert
+			m.focusPrompt = true
+			nm, cmd := m.chat.Update(msg)
+			m.chat = nm.(ChatModel)
+			return m, cmd
+		}
 		return m.updateWelcome(msg)
 	}
 	if m.mode == ModeBlockView {

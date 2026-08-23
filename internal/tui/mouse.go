@@ -2,9 +2,29 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/codeforge/tui/internal/onboarding"
 )
 
 func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+
+	if m.mode == ModeOnboard {
+		cmd, done, prov, key := m.onboard.Update(msg)
+		if done {
+			if prov != "ollama" && key == "" {
+				// wait
+			} else {
+				m.mode = ModeInsert
+				m.focusPrompt = true
+				if _, err := onboarding.ApplyKey(m.providerReg, prov, key, ""); err == nil {
+					m.chat.AddSystemMessage("✅ API Key configured successfully for " + prov)
+				}
+			}
+		}
+		if cmd != nil {
+			return m, cmd
+		}
+		return m, nil
+	}
 
 	if m.mode == ModeWelcome {
 		if msg.Type == tea.MouseLeft {
