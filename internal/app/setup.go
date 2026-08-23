@@ -3,6 +3,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -273,15 +274,29 @@ func Bootstrap(opt Options) (*Runtime, error) {
 		}
 	}
 
-	if !opt.SkipMCP && len(cfg.MCP.Servers) > 0 {
+	if !opt.SkipMCP {
 		var servers []provider.MCPServerConfig
+		// 1. From global config.yaml
 		for _, s := range cfg.MCP.Servers {
 			servers = append(servers, provider.MCPServerConfig{
-				Name: s.Name, Command: s.Command, Args: s.Args, Env: s.Env,
+				Name: s.Name, Transport: s.Transport, URL: s.URL, Command: s.Command, Args: s.Args, Env: s.Env,
 			})
 		}
-		for _, line := range tool.RegisterMCPServers(toolReg, servers) {
-			logf("✓ %s\n", line)
+		// 2. From local project .codeforge/plugins/mcp.json
+		localMCPPath := filepath.Join(workdir, ".codeforge", "plugins", "mcp.json")
+		if data, err := os.ReadFile(localMCPPath); err == nil {
+			var localServers []provider.MCPServerConfig
+			if err := json.Unmarshal(data, &localServers); err == nil {
+				servers = append(servers, localServers...)
+			} else {
+				logf("Warning: failed to parse %s: %v\n", localMCPPath, err)
+			}
+		}
+
+		if len(servers) > 0 {
+			for _, line := range tool.RegisterMCPServers(toolReg, servers) {
+				logf("✓ %s\n", line)
+			}
 		}
 	}
 

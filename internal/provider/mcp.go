@@ -10,6 +10,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/websocket"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -19,10 +21,14 @@ import (
 
 // MCPServerConfig describes one MCP server (stdio).
 type MCPServerConfig struct {
-	Name    string            `json:"name" yaml:"name"`
-	Command string            `json:"command" yaml:"command"`
-	Args    []string          `json:"args" yaml:"args"`
-	Env     map[string]string `json:"env" yaml:"env"`
+	Name string `json:"name" yaml:"name"`
+	// Transport can be "stdio", "websocket", or "sse"
+	Transport string            `json:"transport" yaml:"transport"`
+	Command   string            `json:"command" yaml:"command"`
+	Args      []string          `json:"args" yaml:"args"`
+	Env       map[string]string `json:"env" yaml:"env"`
+	// URL for websocket or sse transport
+	URL string `json:"url" yaml:"url"`
 }
 
 // MCPClient is a minimal JSON-RPC over stdio client for MCP tool listing/calls.
@@ -31,6 +37,7 @@ type MCPClient struct {
 	cmd    *exec.Cmd
 	stdin  *bufio.Writer
 	stdout *bufio.Reader
+	ws     *websocket.Conn
 	mu     sync.Mutex
 	nextID int
 }
@@ -45,35 +52,59 @@ type MCPToolDef struct {
 
 // Connect starts the MCP server process and initializes the session.
 func ConnectMCP(cfg MCPServerConfig) (*MCPClient, error) {
-	if cfg.Command == "" {
-		return nil, fmt.Errorf("mcp: command required")
+	if cfg.Transport == "" {
+		cfg.Transport = "stdio"
 	}
-	cmd := exec.Command(cfg.Command, cfg.Args...)
-	cmd.Env = os.Environ()
-	for k, v := range cfg.Env {
-		cmd.Env = append(cmd.Env, k+"="+v)
+	if cfg.Transport == "sse" {
+		return nil, fmt.Errorf("mcp: sse transport is experimental and currently unimplemented natively")
 	}
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("mcp start %s: %w", cfg.Name, err)
-	}
+
 	c := &MCPClient{
 		cfg:    cfg,
-		cmd:    cmd,
-		stdin:  bufio.NewWriter(stdin),
-		stdout: bufio.NewReader(stdout),
 		nextID: 1,
 	}
+
+	if cfg.Transport == "websocket" {
+		if cfg.URL == "" {
+			return nil, fmt.Errorf("mcp: url required for websocket transport")
+		}
+		u, err := url.Parse(cfg.URL)
+		if err != nil {
+			return nil, fmt.Errorf("mcp invalid ws url: %v", err)
+		}
+		conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+		if err != nil {
+			return nil, fmt.Errorf("mcp ws dial failed: %v", err)
+		}
+		c.ws = conn
+	} else {
+		// Stdio
+		if cfg.Command == "" {
+			return nil, fmt.Errorf("mcp: command required for stdio transport")
+		}
+		cmd := exec.Command(cfg.Command, cfg.Args...)
+		cmd.Env = os.Environ()
+		for k, v := range cfg.Env {
+			cmd.Env = append(cmd.Env, k+"="+v)
+		}
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			return nil, err
+		}
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return nil, err
+		}
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			return nil, fmt.Errorf("mcp start %s: %w", cfg.Name, err)
+		}
+		c.cmd = cmd
+		c.stdin = bufio.NewWriter(stdin)
+		c.stdout = bufio.NewReader(stdout)
+	}
 	// initialize
-	_, err = c.request(context.Background(), "initialize", map[string]any{
+	_, err := c.request(context.Background(), "initialize", map[string]any{
 		"protocolVersion": "2024-11-05",
 		"capabilities":    map[string]any{},
 		"clientInfo":      map[string]any{"name": "codeforge", "version": "1.9.3"},
@@ -164,13 +195,19 @@ func (c *MCPClient) request(ctx context.Context, method string, params any) (jso
 		"method":  method,
 		"params":  params,
 	}
-	data, _ := json.Marshal(msg)
-	data = append(data, '\n')
-	if _, err := c.stdin.Write(data); err != nil {
-		return nil, err
-	}
-	if err := c.stdin.Flush(); err != nil {
-		return nil, err
+	if c.cfg.Transport == "websocket" {
+		if err := c.ws.WriteJSON(msg); err != nil {
+			return nil, err
+		}
+	} else {
+		data, _ := json.Marshal(msg)
+		data = append(data, '\n')
+		if _, err := c.stdin.Write(data); err != nil {
+			return nil, err
+		}
+		if err := c.stdin.Flush(); err != nil {
+			return nil, err
+		}
 	}
 
 	deadline := time.Now().Add(30 * time.Second)
@@ -178,14 +215,6 @@ func (c *MCPClient) request(ctx context.Context, method string, params any) (jso
 		deadline = d
 	}
 	for time.Now().Before(deadline) {
-		line, err := c.stdout.ReadBytes('\n')
-		if err != nil {
-			return nil, err
-		}
-		line = bytes.TrimSpace(line)
-		if len(line) == 0 {
-			continue
-		}
 		var resp struct {
 			ID     int             `json:"id"`
 			Result json.RawMessage `json:"result"`
@@ -193,8 +222,25 @@ func (c *MCPClient) request(ctx context.Context, method string, params any) (jso
 				Message string `json:"message"`
 			} `json:"error"`
 		}
-		if err := json.Unmarshal(line, &resp); err != nil {
-			continue
+		if c.cfg.Transport == "websocket" {
+			if err := c.ws.SetReadDeadline(deadline); err != nil {
+				return nil, err
+			}
+			if err := c.ws.ReadJSON(&resp); err != nil {
+				return nil, err
+			}
+		} else {
+			line, err := c.stdout.ReadBytes('\n')
+			if err != nil {
+				return nil, err
+			}
+			line = bytes.TrimSpace(line)
+			if len(line) == 0 {
+				continue
+			}
+			if err := json.Unmarshal(line, &resp); err != nil {
+				continue
+			}
 		}
 		if resp.ID != id {
 			continue

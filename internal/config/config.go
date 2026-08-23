@@ -137,6 +137,8 @@ type MCPConfig struct {
 // MCPServer is one MCP stdio server entry.
 type MCPServer struct {
 	Name    string            `mapstructure:"name"`
+	Transport string            `mapstructure:"transport"`
+	URL       string            `mapstructure:"url"`
 	Command string            `mapstructure:"command"`
 	Args    []string          `mapstructure:"args"`
 	Env     map[string]string `mapstructure:"env"`
