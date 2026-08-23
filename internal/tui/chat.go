@@ -287,15 +287,6 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if c.streaming {
 			c.spinnerFrame = (c.spinnerFrame + 1) % len(spinnerFrames)
 		}
-		if c.typewriterOn && len(c.typewriterQ) > 0 {
-			for i := 0; i < 2 && len(c.typewriterQ) > 0; i++ {
-				c.store.AddSystem(c.typewriterQ[0])
-				c.typewriterQ = c.typewriterQ[1:]
-			}
-			if len(c.typewriterQ) == 0 {
-				c.typewriterOn = false
-			}
-		}
 
 	case StreamTickMsg:
 		if msg.Error != nil {
@@ -503,19 +494,11 @@ func (c ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // Large blocks (status cards, doctor output) are added immediately so the TUI
 // never looks frozen waiting for typewriter ticks.
 func (c *ChatModel) AddSystemMessage(text string) {
-	lines := strings.Split(text, "\n")
-	// Typewriter only for small multi-line messages (≤8 lines); larger = instant.
-	if theme.MotionEnabled() && len(lines) > 2 && len(lines) <= 8 {
-		c.typewriterQ = append(c.typewriterQ, lines...)
-		c.typewriterOn = true
+	text = strings.TrimSpace(text)
+	if text == "" {
 		return
 	}
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		c.store.AddSystem(line)
-	}
+	c.store.AddSystem(text)
 }
 
 func (c *ChatModel) Clear() {
