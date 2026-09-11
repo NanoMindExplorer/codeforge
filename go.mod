@@ -1,6 +1,6 @@
 module github.com/codeforge/tui
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/charmbracelet/bubbles v1.0.0
@@ -16,7 +16,8 @@ require (
 	github.com/sahilm/fuzzy v0.1.3
 	github.com/spf13/viper v1.21.0
 	github.com/zalando/go-keyring v0.2.6
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.48.0
+	golang.org/x/term v0.45.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -77,7 +78,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
