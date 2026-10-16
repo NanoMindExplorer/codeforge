@@ -10,7 +10,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/gorilla/websocket v1.5.3
 	github.com/liushuangls/go-anthropic/v2 v2.24.0
-	github.com/lucasb-eyer/go-colorful v1.4.0
+	github.com/lucasb-eyer/go-colorful v1.4.1
 	github.com/muesli/reflow v0.3.0
 	github.com/muesli/termenv v0.16.0
 	github.com/sahilm/fuzzy v0.1.3
